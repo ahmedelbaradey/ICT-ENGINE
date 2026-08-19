@@ -28,11 +28,23 @@ from .sessions import (
     resolve_window,
     resolve_windows,
 )
+from .structure import (
+    BreakMode,
+    ChochPolicy,
+    StructureAnalysis,
+    StructureBreak,
+    StructureConfig,
+    StructureDetector,
+    StructureState,
+    SwingLabel,
+)
 from .swings import SwingConfig, SwingDetector, SwingPoint, TiePolicy, reference_pivots
 
 __all__ = [
     "DEFAULT_SESSIONS",
     "BoundaryAnomaly",
+    "BreakMode",
+    "ChochPolicy",
     "ContractViolation",
     "Direction",
     "EventStatus",
@@ -44,8 +56,14 @@ __all__ = [
     "SessionKind",
     "SessionOccurrence",
     "SessionWindow",
+    "StructureAnalysis",
+    "StructureBreak",
+    "StructureConfig",
+    "StructureDetector",
+    "StructureState",
     "SwingConfig",
     "SwingDetector",
+    "SwingLabel",
     "SwingPoint",
     "TiePolicy",
     "assert_no_leakage",

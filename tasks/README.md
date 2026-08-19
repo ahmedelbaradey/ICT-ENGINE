@@ -15,7 +15,7 @@ Per-story task breakdown. Convention ported from Learnexia (see [docs/dev/WORK_I
 |---|---|---|
 | [R2-01](Phase-2-ICT-Engine/R2-01-TASKS.md) | Session detector | ✅ Done |
 | [R2-02](Phase-2-ICT-Engine/R2-02-TASKS.md) | Swing detection | ✅ Done |
-| [R2-03](Phase-2-ICT-Engine/R2-03-TASKS.md) | Market structure | ⬜ Not started |
+| [R2-03](Phase-2-ICT-Engine/R2-03-TASKS.md) | Market structure | ✅ Done |
 | [R2-04](Phase-2-ICT-Engine/R2-04-TASKS.md) | Liquidity | ⬜ Not started |
 | [R2-05](Phase-2-ICT-Engine/R2-05-TASKS.md) | Fair Value Gap | ⬜ Not started |
 | [R2-06](Phase-2-ICT-Engine/R2-06-TASKS.md) | Premium / Discount | ⬜ Not started |

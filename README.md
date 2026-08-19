@@ -18,7 +18,7 @@ This project makes no claim to predict markets with certainty. All outputs are p
 | 0.5 — Foundation | ✅ Complete |
 | 1 — Market data layer | ✅ Complete |
 | 1.5 — Real-data proof | ✅ APPROVED |
-| **2 — ICT engine** | 🔵 **In progress — R2-01 sessions, R2-02 swings done** |
+| **2 — ICT engine** | 🔵 **In progress — R2-01 sessions, R2-02 swings, R2-03 structure done** |
 | 3 — Feature dataset | ⬜ |
 | 4 — Baseline models | ⬜ |
 | 5 — Kronos integration | ⬜ Blocked — no CUDA GPU |

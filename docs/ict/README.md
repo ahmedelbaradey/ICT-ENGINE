@@ -12,8 +12,8 @@ adopted silently.
 |---|---|---|---|
 | SessionDetector | [R2-01](../../user-stories/Phase-2-ICT-Engine/R2-01-session-detector.md) | [sessions.md](sessions.md) | ✅ Done |
 | SwingDetector | [R2-02](../../user-stories/Phase-2-ICT-Engine/R2-02-swing-detection.md) | [swings.md](swings.md) | ✅ Done |
-| StructureDetector | R2-03 | — | ⬜ **Next** |
-| LiquidityDetector | R2-04 | — | ⬜ Not started |
+| StructureDetector | [R2-03](../../user-stories/Phase-2-ICT-Engine/R2-03-market-structure.md) | [structure.md](structure.md) | ✅ Done |
+| LiquidityDetector | R2-04 | — | ⬜ **Next** |
 | FVGDetector | R2-05 | — | ⬜ Not started |
 | PremiumDiscountCalculator | R2-06 | — | ⬜ Not started |
 | ICTFeatureVector | R2-07 | — | ⬜ Not started |

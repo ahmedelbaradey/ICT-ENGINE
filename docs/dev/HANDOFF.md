@@ -2,7 +2,7 @@
 
 **Protocol (ported from Learnexia):** read this before starting work; update it before opening your PR, in the same PR. Prune what has gone stale. If it isn't here, assume the next person won't know it.
 
-Last updated: **2026-08-19** — end of R2-02 (SwingDetector).
+Last updated: **2026-08-20** — end of R2-03 (StructureDetector).
 
 ---
 
@@ -14,7 +14,7 @@ Last updated: **2026-08-19** — end of R2-02 (SwingDetector).
 | 0.5 — Foundation | ✅ Complete |
 | 1 — Market data layer | ✅ Complete |
 | 1.5 — Real-data proof | ✅ APPROVED |
-| **2 — ICT engine** | 🔵 **In progress — R2-01, R2-02 done; R2-03 next** |
+| **2 — ICT engine** | 🔵 **In progress — R2-01..R2-03 done; R2-04 next** |
 | 3–10 | ⬜ Not started (5 blocked on GPU) |
 
 ### Phase 2 stories
@@ -23,8 +23,8 @@ Last updated: **2026-08-19** — end of R2-02 (SwingDetector).
 |---|---|
 | R2-01 SessionDetector | ✅ Done — 136 tests |
 | R2-02 SwingDetector | ✅ Done — 139 tests |
-| R2-03 StructureDetector | ⬜ **Next** |
-| R2-04 LiquidityDetector | ⬜ |
+| R2-03 StructureDetector | ✅ Done — 169 tests |
+| R2-04 LiquidityDetector | ⬜ **Next** |
 | R2-05 FVGDetector | ⬜ |
 | R2-06 PremiumDiscount | ⬜ |
 | R2-07 ICT feature integration | ⬜ |
@@ -47,6 +47,8 @@ Stories in [user-stories/](../../user-stories/README.md), tasks in [tasks/](../.
 9. **Sessions are defined in LOCAL time, never UTC.** That is what makes DST automatic. Overridable via `ICT_SESSIONS_JSON`.
 10. **Swings use the n-bar fractal definition**, chosen because its confirmation lag is BOUNDED and streamable (ZigZag/ATR variants are not). `right >= 1` is enforced — a zero-lag pivot is not a swing.
 11. **`filter_observable()` is the one downstream gate.** Feature assembly (R2-07) must go through it. Do not hand-roll a confirmation filter.
+12. **BOS and MSS are ONE detection distinguished by prior state**, not two algorithms. **CHoCH is a synonym for MSS by default and is not emitted** — see `docs/ict/structure.md` §5. The `DISTINCT_BY_DISPLACEMENT` policy is the only alternative offered, and it is off by default.
+13. **Structure break mode defaults to CLOSE.** In WICK mode the bar that prints a higher swing high necessarily breaks the previous one, so nearly every HH also emits a BOS.
 
 ---
 
@@ -149,9 +151,17 @@ Full results: [DATA_PROOF.md](../financial-ai/DATA_PROOF.md). A re-run against t
 - **`series.rolling(n).max().shift(-right)` is easy to get off by one.** `reference_pivots()` is a deliberately naive reference kept in the module purely so tests can prove the fast path. Keep it.
 - **Plateaus are common in real data** — especially XAUUSD, which quantises hard. The tie policy is therefore load-bearing, not a nicety. Default `FIRST` gives exactly one swing per plateau at the earliest confirmable timestamp.
 
+## Gotchas found in R2-03
+
+- **Swings are absorbed BEFORE the break check**, deliberately. If a newer, higher pivot confirms on the same bar that would have broken an older lower level, the newer pivot becomes the reference and there is no break — because price had already exceeded the old level at that pivot. Reversing the order reports breaks of levels price passed long ago. See `docs/ict/structure.md` §3.
+- **In WICK mode the bar forming a higher swing high also breaks the previous high** (its high exceeds it by construction). That collapses "formed a pivot" into "broke a level", and is the main reason CLOSE is the default.
+- **A reference level is consumed on break** — one level cannot break twice. A second push needs a genuinely new confirmed swing.
+- **Equal swing levels get NO HH/HL/LH/LL label** but still become the active reference. Equal highs are liquidity (R2-04), not structure; labelling them here would pre-empt that story.
+- **Insufficient history for displacement ⇒ CHoCH** under the distinct policy. Conservative by design: without evidence of displacement we do not claim the stronger label.
+
 ## Open items for Phase 2
 
-1. **R2-03 StructureDetector is next.** It consumes CONFIRMED swings only, so it inherits the swing lag rather than bypassing it.
+1. **R2-04 LiquidityDetector is next.** It needs R2-01 sessions (session H/L) and R2-02 swings (equal highs/lows), and it owns the equal-level concept R2-03 deliberately left unlabelled.
 2. **Swings are unranked.** Many minor pivots at `left=right=2`. `strength` (prominence) is available for filtering, but R2-03/R2-07 will likely need a significance ranking.
 3. **No holiday calendar yet.** A bank holiday looks like any other empty window: correctly no occurrence, but the detector cannot say *why*. R2-04 ("previous day") likely forces the issue.
 4. **Multi-year data availability is UNCONFIRMED.** Only 4 days are proven. Whether Dukascopy has complete 2021-2025 coverage for both symbols has not been checked, so the Master Plan §20 split is unvalidated. Run a metered background backfill early.

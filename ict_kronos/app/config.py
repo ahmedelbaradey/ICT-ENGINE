@@ -216,6 +216,38 @@ class SwingDetectionConfig:
 
 
 @dataclass(frozen=True)
+class StructureDetectionConfig:
+    """Market-structure parameters (R2-03). See ``docs/ict/structure.md``.
+
+    ``break_mode`` defaults to ``close`` because a wick break fires on every stop-run,
+    which R2-04 models as a liquidity SWEEP rather than a structural break.
+
+    ``choch_policy`` defaults to ``synonym``: CHoCH and MSS are the same event and only
+    MSS is emitted. Stated explicitly rather than faked into two code paths.
+    """
+
+    break_mode: str = "close"
+    break_tolerance_points: float = 0.0
+    equal_level_tolerance_points: float = 0.0
+    min_swing_strength_points: float = 0.0
+    choch_policy: str = "synonym"
+    displacement_lookback: int = 20
+    displacement_factor: float = 1.5
+
+    @classmethod
+    def from_env(cls) -> StructureDetectionConfig:
+        return cls(
+            break_mode=os.environ.get("ICT_STRUCTURE_BREAK_MODE", "close").strip().lower(),
+            break_tolerance_points=_get_float("ICT_STRUCTURE_BREAK_TOLERANCE_POINTS", 0.0),
+            equal_level_tolerance_points=_get_float("ICT_STRUCTURE_EQUAL_TOLERANCE_POINTS", 0.0),
+            min_swing_strength_points=_get_float("ICT_STRUCTURE_MIN_SWING_STRENGTH", 0.0),
+            choch_policy=os.environ.get("ICT_STRUCTURE_CHOCH_POLICY", "synonym").strip().lower(),
+            displacement_lookback=_get_int("ICT_STRUCTURE_DISPLACEMENT_LOOKBACK", 20),
+            displacement_factor=_get_float("ICT_STRUCTURE_DISPLACEMENT_FACTOR", 1.5),
+        )
+
+
+@dataclass(frozen=True)
 class KronosConfig:
     """Phase 5 — devops/opt-in gated. Empty until weights are provisioned."""
 
@@ -294,6 +326,7 @@ class Settings:
     market_data: MarketDataConfig = field(default_factory=MarketDataConfig.from_env)
     sessions: SessionConfig = field(default_factory=SessionConfig.from_env)
     swings: SwingDetectionConfig = field(default_factory=SwingDetectionConfig.from_env)
+    structure: StructureDetectionConfig = field(default_factory=StructureDetectionConfig.from_env)
     kronos: KronosConfig = field(default_factory=KronosConfig.from_env)
     llm: LlmConfig = field(default_factory=LlmConfig.from_env)
     ingest_poller: PollerConfig = field(default_factory=lambda: PollerConfig.for_lane("ingest"))
@@ -307,6 +340,7 @@ class Settings:
             market_data=MarketDataConfig.from_env(),
             sessions=SessionConfig.from_env(),
             swings=SwingDetectionConfig.from_env(),
+            structure=StructureDetectionConfig.from_env(),
             kronos=KronosConfig.from_env(),
             llm=LlmConfig.from_env(),
             ingest_poller=PollerConfig.for_lane("ingest"),
