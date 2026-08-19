@@ -22,12 +22,16 @@ htmlcov/
 credentials.json
 
 # --- Market data ---
-# Raw and derived market data are large, immutable, and versioned by manifest —
-# reproduce them from the ingest lane, never from git.
-data/raw/
-data/normalized/
-data/features/
-data/datasets/
+# NOTHING under data/ is ever committed. Raw .bi5 payloads, derived Parquet and
+# dataset manifests are large, reproducible from the ingest lane, and provenanced
+# by hash in docs/financial-ai/DATA_PROOF.md. The whole tree is ignored rather
+# than an enumerated subset, because a new subdirectory (cache/, manifests/, ...)
+# must never silently become committable.
+#
+# ROOT-ANCHORED (`/data/`), not `data/`: a bare `data/` pattern matches a
+# directory of that name at ANY depth, which would silently exclude the
+# `ict_kronos/data/` source package.
+/data/
 *.parquet
 *.csv
 !tests/fixtures/**/*.csv

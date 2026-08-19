@@ -58,6 +58,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="replace existing partitions; breaks reproducibility of published results",
     )
 
+    backfill = sub.add_parser(
+        "backfill",
+        help="download real ticks and build the 1M -> 5M/15M/1H stack (needs the [dukascopy] extra)",
+    )
+    backfill.add_argument("--symbol", action="append", required=True, help="repeatable, e.g. EURUSD")
+    backfill.add_argument("--start", type=_parse_date, required=True)
+    backfill.add_argument("--end", type=_parse_date, required=True, help="exclusive")
+    backfill.add_argument("--version", required=True, help="dataset version — immutable once written")
+    backfill.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="replace existing partitions; breaks reproducibility of published results",
+    )
+
     verify = sub.add_parser("verify", help="re-hash a dataset version against its manifest")
     verify.add_argument("--version", required=True)
 
@@ -93,6 +107,43 @@ def command_ingest(args: argparse.Namespace) -> int:
     return 0 if result.succeeded else 1
 
 
+def command_backfill(args: argparse.Namespace) -> int:
+    """Real-data backfill: ticks → 1M → 5M/15M/1H → Parquet + manifest."""
+    # Imported here so the default (fixture) CLI path never needs the live modules.
+    from .data.realdata import RealDataPipeline
+
+    settings = get_settings()
+    pipeline = RealDataPipeline(settings)
+    symbols = [Symbol.from_string(s) for s in args.symbol]
+
+    result = pipeline.run(
+        symbols, args.start, args.end, dataset_version=args.version, overwrite=args.overwrite
+    )
+
+    print(f"dataset      : {result.dataset_version}")
+    print(f"manifest     : {result.manifest_path}")
+
+    for name, backfill in result.backfills.items():
+        quality = backfill.tick_quality
+        print(
+            f"  {name}: {quality.output_ticks:,}/{quality.input_ticks:,} ticks kept "
+            f"({quality.rejected} rejected), {quality.hours_empty}/{quality.hours_requested} "
+            f"hours empty, {backfill.raw.file_count} raw file(s)"
+        )
+        if quality.reasons:
+            print(f"      rejection reasons: {quality.reasons}")
+
+    for series in result.series:
+        report = series.report
+        gaps = f"{len(report.gaps)} gap(s)" if report else "no report"
+        print(f"  {series.symbol}/{series.timeframe}: {series.rows} bars, {gaps}")
+
+    for failure in result.failures[:20]:
+        print(f"  FAILED {failure}", file=sys.stderr)
+
+    return 0 if result.succeeded else 1
+
+
 def command_verify(args: argparse.Namespace) -> int:
     settings = get_settings()
     problems = ManifestStore(settings.storage.manifest_root).verify(args.version)
@@ -113,6 +164,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "ingest":
         return command_ingest(args)
+    if args.command == "backfill":
+        return command_backfill(args)
     if args.command == "verify":
         return command_verify(args)
     return 2

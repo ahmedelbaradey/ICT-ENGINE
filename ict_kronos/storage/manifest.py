@@ -25,7 +25,62 @@ from .parquet_store import PartitionInfo, sha256_of
 
 logger = get_logger(__name__)
 
-MANIFEST_SCHEMA_VERSION = 1
+#: Bumped to 2 when the real-data proof added the per-series ``datasets`` block
+#: (source, download_period, raw/normalized hashes, pipeline_version, timezone).
+MANIFEST_SCHEMA_VERSION = 2
+
+#: Version of the ingest/normalize/resample code path that produced a dataset.
+#: Bump this whenever a change would alter the bars produced from identical raw
+#: bytes — it is what distinguishes "same data" from "same data, same maths".
+PIPELINE_VERSION = "1.1.0"
+
+
+@dataclass
+class SeriesProvenance:
+    """Provenance for one (symbol, timeframe) series within a dataset version.
+
+    Carries every field the real-data proof requires, so a reader can answer
+    "where did this come from and can I rebuild it?" without opening any code.
+    """
+
+    symbol: str
+    source: str
+    bar_timeframe: str
+    download_period_start: str
+    download_period_end: str
+    timezone: str
+    raw_file_hash: str
+    normalized_file_hash: str
+    row_count: int
+    first_timestamp: str | None
+    last_timestamp: str | None
+    creation_timestamp: str
+    pipeline_version: str
+    git_commit: str | None
+    derived_from: str | None = None
+    extra: dict = field(default_factory=dict)
+
+    def as_dict(self) -> dict:
+        return {
+            "symbol": self.symbol,
+            "source": self.source,
+            "bar_timeframe": self.bar_timeframe,
+            "download_period": {
+                "start": self.download_period_start,
+                "end": self.download_period_end,
+            },
+            "timezone": self.timezone,
+            "raw_file_hash": self.raw_file_hash,
+            "normalized_file_hash": self.normalized_file_hash,
+            "row_count": self.row_count,
+            "first_timestamp": self.first_timestamp,
+            "last_timestamp": self.last_timestamp,
+            "creation_timestamp": self.creation_timestamp,
+            "pipeline_version": self.pipeline_version,
+            "git_commit": self.git_commit,
+            "derived_from": self.derived_from,
+            **({"extra": self.extra} if self.extra else {}),
+        }
 
 
 @dataclass
@@ -37,7 +92,9 @@ class DatasetManifest:
     provider: str
     git_commit: str | None
     schema_version: int = MANIFEST_SCHEMA_VERSION
+    pipeline_version: str = PIPELINE_VERSION
     partitions: list[dict] = field(default_factory=list)
+    datasets: list[dict] = field(default_factory=list)
     normalization_reports: list[dict] = field(default_factory=list)
     notes: dict = field(default_factory=dict)
 
@@ -48,6 +105,7 @@ class DatasetManifest:
         provider: str,
         *,
         partitions: list[PartitionInfo] | None = None,
+        datasets: list[SeriesProvenance] | None = None,
         normalization_reports: list[dict] | None = None,
         notes: dict | None = None,
         repo_root: Path | None = None,
@@ -58,6 +116,7 @@ class DatasetManifest:
             provider=provider,
             git_commit=current_git_commit(repo_root),
             partitions=[p.as_dict() for p in (partitions or [])],
+            datasets=[d.as_dict() for d in (datasets or [])],
             normalization_reports=list(normalization_reports or []),
             notes=dict(notes or {}),
         )
@@ -72,9 +131,11 @@ class DatasetManifest:
             "dataset_version": self.dataset_version,
             "created_at": self.created_at,
             "provider": self.provider,
+            "pipeline_version": self.pipeline_version,
             "git_commit": self.git_commit,
             "total_rows": self.total_rows,
             "partition_count": len(self.partitions),
+            "datasets": self.datasets,
             "partitions": self.partitions,
             "normalization_reports": self.normalization_reports,
             "notes": self.notes,
@@ -88,7 +149,9 @@ class DatasetManifest:
             provider=payload["provider"],
             git_commit=payload.get("git_commit"),
             schema_version=payload.get("schema_version", MANIFEST_SCHEMA_VERSION),
+            pipeline_version=payload.get("pipeline_version", PIPELINE_VERSION),
             partitions=payload.get("partitions", []),
+            datasets=payload.get("datasets", []),
             normalization_reports=payload.get("normalization_reports", []),
             notes=payload.get("notes", {}),
         )

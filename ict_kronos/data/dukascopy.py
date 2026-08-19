@@ -62,6 +62,19 @@ TICK_RECORD_BYTES = _TICK_STRUCT.size  # 20
 
 TICK_COLUMNS: tuple[str, ...] = ("timestamp", "bid", "ask", "bid_volume", "ask_volume")
 
+#: Dukascopy's feed server answers **HTTP 503** to non-browser User-Agent strings.
+#: This was found empirically during the Phase 1.5 data proof: an honest
+#: ``ict-kronos/0.1 (research)`` UA is rejected while a browser UA on the identical
+#: URL returns 200. The header is therefore load-bearing, not cosmetic — without it
+#: every download fails and the failure looks like an outage rather than a policy.
+BROWSER_HEADERS: dict[str, str] = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept": "*/*",
+}
+
 
 class PriceSide(StrEnum):
     """Which side of the spread the OHLC bars are built from."""
@@ -341,7 +354,7 @@ class DukascopyProvider:
                 "the 'dukascopy' extra is not installed; run `pip install -e \".[dukascopy]\"`",
             ) from exc
 
-        response = requests.get(url, timeout=self._timeout)
+        response = requests.get(url, timeout=self._timeout, headers=BROWSER_HEADERS)
         if response.status_code == 404:
             # No file for this hour — a normal market closure, not a failure.
             return b""

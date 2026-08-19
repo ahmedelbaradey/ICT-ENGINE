@@ -70,19 +70,56 @@ Not in the original plan, but Option A requires the skeleton to exist before Pha
 
 ---
 
+## Phase 1.5 — Real-data proof ✅ COMPLETE
+
+Not in the original plan; inserted before Phase 2 to prove the pipeline on genuine data rather than fixtures.
+
+**Delivered:** [DATA_PROOF.md](DATA_PROOF.md) — **APPROVED for Phase 2**. Real Dukascopy ticks for EURUSD + XAUUSD over `2024-03-08 → 2024-03-12` (a window containing a full weekend closure and the US DST transition): 436,332 ticks, **0 rejected**, **0 download failures**, 7,355 bars across 1M/5M/15M/1H, **0 resample mismatches**, **0 leakage violations**, manifest hash verification PASS.
+
+Also delivered: [COMPUTE_ENVIRONMENT.md](COMPUTE_ENVIRONMENT.md) (no CUDA GPU — Phase 5 deferred, Phases 2–4 unaffected) and [LEGACY_RESEARCH.md](LEGACY_RESEARCH.md) (prior projects inspected read-only; no code reused).
+
+**Carried into Phase 2:**
+- **Multi-year data availability is still unconfirmed.** The §20 split (2021–2025) has not been validated against the provider. Settle this early with a metered background backfill.
+- Dukascopy serves **one connection at a time** at ~0.12–0.44 s/file warm; concurrency is refused outright. A full-year backfill is a long, resumable background job.
+
+---
+
 ## Phase 2 — ICT engine (§5–§11)
 
 **MVP scope only (§31):** Swing structure, BOS, MSS, FVG, Liquidity, Premium/Discount, Sessions. Order Blocks and the rest of §8 are deferred.
 
-- `SessionDetector` first — Asian/London/NY, kill zones, DST-aware, all times configurable. Everything else depends on session context.
-- `StructureDetector` — swing high/low, HH/HL/LH/LL, BOS, MSS, CHoCH, displacement. **Each detection emits the full §5 record** (`timestamp, timeframe, direction, price, strength, reference_level, distance, confirmation_status`) — and critically a `confirmation_timestamp`, since swing confirmation is inherently retrospective and is the #1 leakage source in ICT systems.
-- `LiquidityDetector` — equal highs/lows, PDH/PDL, PWH/PWL, session high/low, internal vs external, sweep detection with `sweep_timestamp`.
-- `FVGDetector` — bullish/bearish, size, age, fill percentage, invalidation, validity.
-- `PremiumDiscountCalculator` — dealing range, equilibrium, position ratio.
+**Development order (fixed):**
 
-**Tests:** one unit test per §27 name, each on hand-built fixture candles with known answers; plus `test_no_future_data_leakage` per detector; plus a **property test**: replaying bars one at a time must reproduce exactly the same feature series as a full-history computation. That property is the strongest available leakage guard.
+1. **`SessionDetector` first** — Asian / London / New York, then London and NY Kill Zones. Timezone- and DST-aware, all boundaries configurable. Everything else depends on session context.
+   - **First acceptance case, from real data:** after the 2024-03-08 weekend closure, EURUSD reopened at **2024-03-10 21:00 UTC** while XAUUSD reopened at **22:00 UTC** — the US DST transition shifting the session open in UTC terms, differently per instrument. The detector must reproduce this. See [DATA_PROOF.md §3.1](DATA_PROOF.md).
+   - It also owns the judgement the normalizer deliberately withholds: which absences are weekends/holidays and which are data faults.
+2. **Swing detection** — swing high, swing low.
+3. **Market structure** — HH / HL / LH / LL, BOS, MSS (and CHoCH, displacement).
+4. **Liquidity** — equal highs/lows, PDH/PDL, PWH/PWL, session high/low, internal vs external, sweep detection with `sweep_timestamp`.
+5. **FVG** — bullish/bearish, size, age, fill %, invalidation, validity.
+6. **Premium/Discount** — dealing range, equilibrium, premium/discount, position within range.
 
-**Exit gate:** every detector tested; `leakage-auditor` PASS; detector outputs versioned as `feature_version`.
+### Detector contract (§14) — binding for every detector
+
+Every detection emits at minimum:
+
+```
+event_timestamp         confirmation_timestamp   timeframe    symbol
+direction               event_type               price_level  strength
+reference_level
+```
+
+`confirmation_timestamp` is **the first moment the event was actually knowable** — never the open of a candle whose close the event depends on. A 3-candle FVG is confirmed at `candle3.close_time`, not `candle3.timestamp`.
+
+This is not theoretical: `ForexQuant/…/FvgDetectionService.cs` carries a comment reading *"FIXED: Changed from candle2 to candle3 to exclude formation candles"* — someone hit this exact bug in production, and the fix is **still one bar early**. Recorded in [LEGACY_RESEARCH.md §5.1](LEGACY_RESEARCH.md).
+
+**Naming note:** ForexQuant's `SessionManagementService` / `UserSession` / `SessionSettings` are **login-session** code with no trading-session logic anywhere. Use unambiguous names (`TradingSession`, `KillZone`) so the collision cannot recur.
+
+**Tests (§16 — coverage must not drop):** every detector needs normal, edge, malformed-input, boundary, timeframe, timestamp and leakage cases. Specifically: session boundaries, DST, candle close, HTF alignment, swing confirmation, MSS confirmation, liquidity-sweep confirmation, FVG confirmation.
+
+**Streaming-replay requirement (§15):** every detector must eventually satisfy `batch(history) == incremental(bar-by-bar)`, because the same engine serves historical research, backtesting and live inference. The property already holds for resampling and MTF alignment on real data.
+
+**Exit gate:** every detector tested; leakage audit PASS; detector outputs versioned as `feature_version`.
 
 ---
 
@@ -107,6 +144,8 @@ Logistic Regression → Random Forest → XGBoost → LightGBM, on **chronologic
 ---
 
 ## Phase 5 — Kronos (§32 Phase 5)
+
+**Blocked on compute.** [COMPUTE_ENVIRONMENT.md](COMPUTE_ENVIRONMENT.md) establishes there is no CUDA-capable GPU on this machine (AMD + Intel integrated only; `nvidia-smi` and `nvcc` absent). Research-scale batch forecasting is not viable on this CPU, so Phase 5 is deferred pending a CUDA environment. **Phases 2, 3, 4, 6 (fusion mechanics), 7 and 8 are unaffected**, and Models A/B/C — which answer the core ICT question — need no GPU at all.
 
 **Starts with a verification task, not code.** Confirm against `https://github.com/shiyu-coder/Kronos` and its model cards: available checkpoints, the actual maximum context length (the §14 "512 candles" claim is **unverified**), the forecast output shape and sampling parameters, and the license for both code and weights. Record the findings in an ADR before integrating.
 
@@ -167,11 +206,12 @@ Success is **not** accuracy. The system is successful only if the edge survives:
 |---|---|---|
 | 0 — Reconnaissance | ✅ Complete | — |
 | 0.5 — Foundation | ✅ Complete | CI green ✅ |
-| **1 — Market data** | ✅ **Complete — 191 tests, ruff + black clean** | All Phase 1 tests pass ✅ |
-| **2 — ICT engine** | **Next** | Detector tests + leakage audit PASS |
+| 1 — Market data | ✅ Complete | All Phase 1 tests pass ✅ |
+| **1.5 — Real-data proof** | ✅ **Complete — [DATA_PROOF.md](DATA_PROOF.md), APPROVED** | Real Dukascopy data validated ✅ |
+| **2 — ICT engine** | **Next — starts with `SessionDetector`** | Detector tests + leakage audit PASS |
 | 3 — Feature dataset | After 2 | Point-in-time proof |
 | 4 — Baselines | After 3 | Models A + B measured |
-| 5 — Kronos | After 4 | Kronos claims **verified**; Model D measured |
+| 5 — Kronos | After 4 — **blocked on a CUDA environment** | Kronos claims **verified**; Model D measured |
 | 6 — Hybrid | After 5 | **§34 answered** with significance testing |
 | 7 — Backtest | After 6 | Realistic-cost metrics |
 | 8 — Walk-forward | After 7 | Robustness across §33 dimensions |

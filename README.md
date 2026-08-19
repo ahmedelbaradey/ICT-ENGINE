@@ -16,11 +16,12 @@ This project makes no claim to predict markets with certainty. All outputs are p
 |---|---|
 | 0 — Reconnaissance | ✅ Complete |
 | 0.5 — Foundation | ✅ Complete |
-| **1 — Market data layer** | ✅ **Complete — 191 tests, ruff + black clean** |
-| 2 — ICT engine | ⬜ Next |
+| 1 — Market data layer | ✅ Complete |
+| **1.5 — Real-data proof** | ✅ **APPROVED — 254 tests, ruff + black clean** |
+| 2 — ICT engine | ⬜ Next — `SessionDetector` |
 | 3 — Feature dataset | ⬜ |
 | 4 — Baseline models | ⬜ |
-| 5 — Kronos integration | ⬜ |
+| 5 — Kronos integration | ⬜ Blocked — no CUDA GPU |
 | 6 — Hybrid model | ⬜ |
 | 7 — Backtesting | ⬜ |
 | 8 — Walk-forward | ⬜ |
@@ -28,6 +29,7 @@ This project makes no claim to predict markets with certainty. All outputs are p
 | 10 — Dashboard / API | ⬜ |
 
 Roadmap and exit gates: [docs/financial-ai/IMPLEMENTATION_ROADMAP.md](docs/financial-ai/IMPLEMENTATION_ROADMAP.md).
+Real-data proof: [docs/financial-ai/DATA_PROOF.md](docs/financial-ai/DATA_PROOF.md) — **approved for Phase 2**.
 
 ---
 
@@ -87,12 +89,14 @@ These are enforced by tests and CI, not merely documented. The full set is in [C
 ict_kronos/
 ├── app/        config, logging (health, outbox to follow)
 ├── domain/     Symbol, Timeframe, MarketCandle — the canonical schema
-├── data/       providers (fixture | dukascopy), normalizer, resampler, ingest
+├── data/       providers (fixture | dukascopy), tick validation, normalizer,
+│            resampler, tick→1M backfill, ingest
 ├── storage/    immutable Parquet store + dataset manifests
-└── cli.py      ingest / verify
+└── cli.py      ingest / backfill / verify
 
 docs/
-├── financial-ai/   Phase 0 reconnaissance + roadmap
+├── financial-ai/   reconnaissance, roadmap, DATA_PROOF, COMPUTE_ENVIRONMENT,
+│                LEGACY_RESEARCH
 └── dev/            HANDOFF.md (shared memory) + ADRs
 ```
 
