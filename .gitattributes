@@ -1,0 +1,14 @@
+# Normalize to LF in the repository; check out native on each platform.
+* text=auto
+
+*.py    text eol=lf
+*.md    text eol=lf
+*.toml  text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+*.json  text eol=lf
+*.csv   text eol=lf
+Dockerfile text eol=lf
+
+*.parquet binary
+*.bi5     binary
