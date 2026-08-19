@@ -1,0 +1,58 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# --- Secrets — NEVER commit ---
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+credentials.json
+
+# --- Market data ---
+# Raw and derived market data are large, immutable, and versioned by manifest —
+# reproduce them from the ingest lane, never from git.
+data/raw/
+data/normalized/
+data/features/
+data/datasets/
+*.parquet
+*.csv
+!tests/fixtures/**/*.csv
+!tests/fixtures/**/*.parquet
+
+# --- Models / artifacts ---
+models/
+artifacts/
+mlruns/
+*.pt
+*.pth
+*.onnx
+*.pkl
+*.joblib
+
+# --- Kronos model weights (multi-GB, licensed separately) ---
+weights/
+
+# --- Reports ---
+reports/
+backtest_results/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

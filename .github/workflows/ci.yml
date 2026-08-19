@@ -1,0 +1,105 @@
+name: CI
+
+# Ported posture from Learnexia/.github/workflows/ci.yml (ADR-0001).
+#
+# The default gate is deliberately FAST and OFFLINE: mock/fixture backends only,
+# no PyTorch, no Kronos weights, no network. Heavy extras ([ml], [kronos],
+# [dukascopy]) are never installed here — CLAUDE.md rule 9. A non-zero pytest exit
+# fails the job.
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.12 is the declared floor; 3.13 guards against drift. Development happens
+        # on 3.14 — see docs/dev/HANDOFF.md.
+        python-version: ['3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install (runtime + test deps only)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+
+      - name: Test
+        env:
+          # Explicit rather than relying on defaults: if a default ever regresses to
+          # a live backend, CI must fail loudly rather than start calling the network.
+          MARKET_DATA_BACKEND: fixture
+          KRONOS_BACKEND: mock
+          LLM_BACKEND: mock
+        run: pytest -v --junitxml=test-results.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-py${{ matrix.python-version }}
+          path: test-results.xml
+          if-no-files-found: ignore
+
+  lint:
+    name: Lint (ruff + black)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dev tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: ruff
+        run: ruff check .
+
+      - name: black
+        run: black --check .
+
+  leakage:
+    name: Look-ahead leakage gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+
+      # Run the leakage suite as its own job so a failure is unmissable in the
+      # checks list rather than buried in a general test run. CLAUDE.md rule 1 —
+      # a leak silently invalidates every downstream result.
+      - name: Leakage tests
+        env:
+          MARKET_DATA_BACKEND: fixture
+        run: pytest -v -m leakage
+
+  docker:
+    name: Validate Dockerfile build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -f docker/Dockerfile -t ict-kronos:ci .

@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ict-kronos"
+version = "0.1.0"
+description = "ICT-Kronos — a scientifically testable quantitative research platform combining deterministic ICT market-structure features, the Kronos financial foundation model, and classical ML."
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "ICT-Kronos" }]
+
+# Lean, pinned core. Heavy ML/foundation-model deps live in optional extras and are
+# NEVER installed by the default CI gate (CLAUDE.md rule 9 — mock by default).
+# Ported posture: Learnexia/python/curriculum_intelligence/pyproject.toml.
+dependencies = [
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "pyarrow>=17.0",     # Parquet — the immutable raw/normalized market-data store
+    "psycopg[binary]>=3.2",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+]
+
+[project.optional-dependencies]
+# Phase 4 — classical ML baselines + ablation harness.
+ml = [
+    "scikit-learn>=1.5",
+    "xgboost>=2.1",
+    "lightgbm>=4.5",
+    "scipy>=1.14",
+]
+# Phase 5 — Kronos foundation model. Multi-GB; opt-in only, never in the default gate.
+kronos = [
+    "torch>=2.4",
+    "huggingface-hub>=0.26",
+]
+# Phase 1 — live Dukascopy tick download. Opt-in; the fixture backend is the default.
+dukascopy = [
+    "requests>=2.32",
+]
+test = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "testcontainers[postgres]>=4.8",
+]
+dev = [
+    "ruff>=0.8",
+    "black>=24.10",
+]
+
+[tool.setuptools.packages.find]
+include = ["ict_kronos*"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.black]
+line-length = 110
+target-version = ["py312"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "contract: Postgres (Testcontainers) outbox contract test — requires Docker",
+    "leakage: look-ahead / point-in-time correctness test (CLAUDE.md rule 1)",
+    "live: exercises a live external backend — excluded from the default CI gate",
+]

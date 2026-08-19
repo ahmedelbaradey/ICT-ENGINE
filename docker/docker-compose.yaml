@@ -1,0 +1,63 @@
+# ICT-Kronos local stack. Independent of Learnexia (ADR-0001) — its own Postgres,
+# its own network, its own volumes. Nothing here talks to the education product.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ict-kronos-postgres
+    restart: unless-stopped
+    environment:
+      # Dev-only credentials. Production injects these from the secret store;
+      # no secret is ever committed (CLAUDE.md rule 10).
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-ict_kronos}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"   # 5433 by default so it cannot collide with another local Postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-ict_kronos}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ict-kronos-network
+
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: ict-kronos-worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-ict_kronos}
+      - DATA_ROOT=/data
+      # Mock by default. Flip deliberately, per CLAUDE.md rule 9.
+      - MARKET_DATA_BACKEND=${MARKET_DATA_BACKEND:-fixture}
+      - KRONOS_BACKEND=${KRONOS_BACKEND:-mock}
+      - LLM_BACKEND=${LLM_BACKEND:-mock}
+      # Devops-gated secrets — empty in dev, injected via ${VAR}, NEVER committed.
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - KRONOS_WEIGHTS_DIR=${KRONOS_WEIGHTS_DIR:-}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - market_data:/data
+    networks:
+      - ict-kronos-network
+    # Phase 1 is a CLI, not a daemon: the container runs on demand.
+    #   docker compose run --rm worker ingest --symbol EURUSD --timeframe 5m \
+    #       --start 2024-03-04 --end 2024-03-05 --version v1
+    profiles: ["cli"]
+
+volumes:
+  postgres_data:
+    driver: local
+  market_data:
+    driver: local
+
+networks:
+  ict-kronos-network:
+    driver: bridge
