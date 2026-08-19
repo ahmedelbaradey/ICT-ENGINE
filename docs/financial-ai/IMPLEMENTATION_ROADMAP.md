@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-19
 **Depends on:** `ARCHITECTURE_ANALYSIS.md`, `AGENT_INVENTORY.md`, `INTEGRATION_PLAN.md`
-**Assumes:** Placement **Option A** (separate `ICT-ENGINE` repo reusing Learnexia's patterns). If the lead chooses Option B, Phases 1–3 change language and persistence; Phases 4–8 are largely unaffected.
+**Decided (2026-08-19):** Placement **Option A** — separate `ICT-ENGINE` repository reusing Learnexia's patterns ([ADR-0001](../dev/adr/0001-repo-placement.md)). Market data source: **Dukascopy** free historical tick data.
 
 ---
 
@@ -165,10 +165,10 @@ Success is **not** accuracy. The system is successful only if the edge survives:
 
 | Phase | Status | Gate to proceed |
 |---|---|---|
-| 0 — Reconnaissance | ✅ Complete | Lead answers `INTEGRATION_PLAN.md` §8 Q1 + Q3 |
-| 0.5 — Foundation | Blocked on Q1 | CI green, compose healthy |
-| **1 — Market data** | **Blocked on Q1 + Q3; next to implement** | All Phase 1 tests pass |
-| 2 — ICT engine | After 1 | Detector tests + leakage audit PASS |
+| 0 — Reconnaissance | ✅ Complete | — |
+| 0.5 — Foundation | ✅ Complete | CI green ✅ |
+| **1 — Market data** | ✅ **Complete — 191 tests, ruff + black clean** | All Phase 1 tests pass ✅ |
+| **2 — ICT engine** | **Next** | Detector tests + leakage audit PASS |
 | 3 — Feature dataset | After 2 | Point-in-time proof |
 | 4 — Baselines | After 3 | Models A + B measured |
 | 5 — Kronos | After 4 | Kronos claims **verified**; Model D measured |

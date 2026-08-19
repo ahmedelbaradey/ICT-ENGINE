@@ -171,11 +171,18 @@ Learnexia offers Postgres (pgvector-capable), Redis, and MinIO. Recommended shap
 
 ---
 
-## 8. Open questions for the lead
+## 8. Questions for the lead
 
-1. **Placement — Option A, B, or C?** (§2) *Blocks Phase 1.* Recommendation: **A**.
-2. **Repo/branching** — `ICT-ENGINE` is currently not a git repository. Initialize it, and with what remote?
-3. **Market data source** — which vendor for EURUSD and XAUUSD 1H/15M/5M, and over what history? (Determines whether the §20 split `2021–2022 / 2023 / 2024 / 2025` is even available.) *Blocks Phase 1 implementation of the provider.*
-4. **Compute** — is a GPU available for Kronos, or is CPU inference the plan? (Affects Phase 5 scope and forecast batch sizing.)
-5. **Story/task intake** — should this project adopt Learnexia's mandatory `user-stories/` + `tasks/` intake with the ask-first rule? Recommended yes, for §28/§29.
-6. **Do the sibling projects** (`ForexQuant/`, `NNForTrading/`, `TradingBot/`, `TradingBotV2/`) contain prior work worth inspecting before Phase 1?
+### Resolved (2026-08-19)
+
+1. ~~**Placement — Option A, B, or C?**~~ → **Option A**, recorded in [ADR-0001](../dev/adr/0001-repo-placement.md).
+2. ~~**Repo/branching**~~ → `ICT-ENGINE` initialized on `main`. **No remote configured yet** — see below.
+3. ~~**Market data source**~~ → **Dukascopy** free historical tick data. The provider is implemented; the live backfill has not been run.
+
+### Still open
+
+4. **Git remote** — no remote is configured. Where should this repository be pushed?
+5. **Data availability** — nobody has yet run a live Dukascopy backfill, so it is **unconfirmed** whether the §20 split (`2021–2022 / 2023 / 2024 / 2025`) is achievable for both EURUSD and XAUUSD. This should be settled early in Phase 2, since it constrains the whole validation design.
+6. **Compute** — is a GPU available for Kronos, or is CPU inference the plan? (Affects Phase 5 scope and forecast batch sizing.)
+7. **Story/task intake** — should this project adopt Learnexia's mandatory `user-stories/` + `tasks/` intake with the ask-first rule? Recommended yes, for §28/§29.
+8. **Sibling projects** — do `ForexQuant/`, `NNForTrading/`, `TradingBot/`, `TradingBotV2/` contain prior work worth inspecting before Phase 2?
