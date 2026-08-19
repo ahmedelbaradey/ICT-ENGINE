@@ -1,0 +1,19 @@
+# R2-04 — Liquidity — tasks
+
+Story: [R2-04](../../user-stories/Phase-2-ICT-Engine/R2-04-liquidity.md)
+
+**Status: not started.** Tasks are enumerated at story start, per the execution order in
+[IMPLEMENTATION_ROADMAP.md](../../docs/financial-ai/IMPLEMENTATION_ROADMAP.md). R2-04 does not
+begin until the preceding story is complete and validated.
+
+Every R2 story carries at minimum these obligatory tasks:
+
+| ID | Task |
+|---|---|
+| R2-04-a | Implementation against the shared detector contract (`ict/contract.py`) |
+| R2-04-b | Configuration wiring — no hardcoded trading constants |
+| R2-04-c | Unit tests: normal, edge, malformed input, boundary, timeframe, timestamp |
+| R2-04-d | **Batch vs streaming-replay equivalence test** |
+| R2-04-e | **Leakage tests** — nothing observable before its `confirmation_timestamp` |
+| R2-04-f | **Real-data acceptance** — EURUSD + XAUUSD 2024-03-08 → 2024-03-12 |
+| R2-04-g | **Documentation** — definition, algorithm, I/O, timestamps, edge cases, ambiguities, coverage |

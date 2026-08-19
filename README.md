@@ -17,8 +17,8 @@ This project makes no claim to predict markets with certainty. All outputs are p
 | 0 — Reconnaissance | ✅ Complete |
 | 0.5 — Foundation | ✅ Complete |
 | 1 — Market data layer | ✅ Complete |
-| **1.5 — Real-data proof** | ✅ **APPROVED — 254 tests, ruff + black clean** |
-| 2 — ICT engine | ⬜ Next — `SessionDetector` |
+| 1.5 — Real-data proof | ✅ APPROVED |
+| **2 — ICT engine** | 🔵 **In progress — R2-01 SessionDetector done** |
 | 3 — Feature dataset | ⬜ |
 | 4 — Baseline models | ⬜ |
 | 5 — Kronos integration | ⬜ Blocked — no CUDA GPU |
@@ -91,6 +91,7 @@ ict_kronos/
 ├── domain/     Symbol, Timeframe, MarketCandle — the canonical schema
 ├── data/       providers (fixture | dukascopy), tick validation, normalizer,
 │            resampler, tick→1M backfill, ingest
+├── ict/        deterministic ICT detectors + the shared event contract
 ├── storage/    immutable Parquet store + dataset manifests
 └── cli.py      ingest / backfill / verify
 

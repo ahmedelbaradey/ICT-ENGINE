@@ -2,7 +2,7 @@
 
 **Protocol (ported from Learnexia):** read this before starting work; update it before opening your PR, in the same PR. Prune what has gone stale. If it isn't here, assume the next person won't know it.
 
-Last updated: **2026-08-19** — end of Phase 1.5 (real-data proof).
+Last updated: **2026-08-19** — end of R2-01 (SessionDetector).
 
 ---
 
@@ -13,9 +13,24 @@ Last updated: **2026-08-19** — end of Phase 1.5 (real-data proof).
 | 0 — Reconnaissance | ✅ Complete — `docs/financial-ai/` (4 documents) |
 | 0.5 — Foundation | ✅ Complete |
 | 1 — Market data layer | ✅ Complete |
-| **1.5 — Real-data proof** | ✅ **APPROVED — 254 tests, ruff + black clean** |
-| 2 — ICT engine | ⬜ Next — starts with `SessionDetector` |
+| 1.5 — Real-data proof | ✅ APPROVED |
+| **2 — ICT engine** | 🔵 **In progress — R2-01 done; R2-02 next** |
 | 3–10 | ⬜ Not started (5 blocked on GPU) |
+
+### Phase 2 stories
+
+| Story | Status |
+|---|---|
+| R2-01 SessionDetector | ✅ Done — 136 tests |
+| R2-02 SwingDetector | ⬜ **Next** |
+| R2-03 StructureDetector | ⬜ |
+| R2-04 LiquidityDetector | ⬜ |
+| R2-05 FVGDetector | ⬜ |
+| R2-06 PremiumDiscount | ⬜ |
+| R2-07 ICT feature integration | ⬜ |
+
+Stories in [user-stories/](../../user-stories/README.md), tasks in [tasks/](../../tasks/README.md).
+**Strict order** — one story completed and validated before the next begins.
 
 ---
 
@@ -28,6 +43,8 @@ Last updated: **2026-08-19** — end of Phase 1.5 (real-data proof).
 5. **No CUDA GPU on this machine** — see [COMPUTE_ENVIRONMENT.md](../financial-ai/COMPUTE_ENVIRONMENT.md). Phase 5 is deferred; Phases 2-4 and 6-8 are unaffected. Do NOT install `[kronos]`/`[ml]` extras until the phase that needs them.
 6. **No legacy code is reused.** `ForexQuant`, `NNForTrading`, `TradingBot` were inspected read-only — see [LEGACY_RESEARCH.md](../financial-ai/LEGACY_RESEARCH.md). Concepts transfer; code does not.
 7. **Work intake adopts Learnexia's convention**, not its files: `user-stories/` + `tasks/` markdown with the ask-the-lead-first rule. No second task system, and Learnexia is untouched.
+8. **The Phase 2 detector contract is fixed** — [`ict/contract.py`](../../ict_kronos/ict/contract.py). `confirmation_timestamp` is the earliest instant an event was knowable, and the constructor refuses any event confirmed before it occurred. Every detector uses it; do not invent a per-detector variant.
+9. **Sessions are defined in LOCAL time, never UTC.** That is what makes DST automatic. Overridable via `ICT_SESSIONS_JSON`.
 
 ---
 
@@ -109,7 +126,6 @@ Full results: [DATA_PROOF.md](../financial-ai/DATA_PROOF.md). A re-run against t
 - **Dukascopy prices are integers scaled by `10 ** price_precision`** — 5 for EURUSD, 3 for XAUUSD. Treating XAUUSD like a 5-decimal FX pair scales every price by 100x.
 - **pandas 3.0 rejects `pd.NA` in a `float64` Series.** Use `np.nan` for unmatched numeric context (this bit the empty-HTF path in `align_htf_context`).
 - **`resample(require_complete=True)` is the default and should stay that way.** A 1H bar built from 5 of its 12 source bars has a real open and a meaningless high/low/close.
-
 - **Dukascopy answers HTTP 503 to a non-browser User-Agent.** A browser UA on the identical URL returns 200. `BROWSER_HEADERS` in `dukascopy.py` is load-bearing; without it every download fails and looks like an outage.
 - **Dukascopy months in the URL are ZERO-indexed** (January = `00`). Getting it wrong silently fetches the wrong month rather than 404ing.
 - **The feed serves ONE connection at a time.** Measured: sequential + warm session = 0.12-0.44 s/file; 4 or 8 concurrent workers = **0/8 succeeded**, actively refused. `TickBackfill.max_workers` defaults to 1 deliberately — raising it makes the backfill fail, not go faster.
@@ -118,10 +134,18 @@ Full results: [DATA_PROOF.md](../financial-ai/DATA_PROOF.md). A re-run against t
 - **Total volume falls as timeframe rises.** Expected: `require_complete=True` drops higher-TF bars not backed by a full complement of source bars. Volume is conserved exactly *within* retained bars.
 - **Aggressive probing gets the IP throttled** (~20 s/file for a while afterwards). Be a polite client.
 
+## Gotchas found in R2-01
+
+- **PEP 495 order matters.** BOTH nonexistent (spring-forward) and ambiguous (fall-back) local times have differing `utcoffset()` between `fold=0` and `fold=1`. A fold comparison alone cannot tell them apart — the **UTC round-trip** is what discriminates. Checking ambiguity first mislabels every spring-forward boundary. (Caught by test.)
+- **The London Kill Zone is 2 hours, not 3, on US spring-forward day.** It starts at 02:00 New York, which does not exist on 2024-03-10. Real, flagged `NONEXISTENT`, and pinned by test. Do not "fix" it.
+- **A session is only emitted once its window has fully elapsed within the observed data.** Without that rule the still-open session looks complete and batch disagrees with streaming replay.
+- **Bar membership is fully-contained**, not "opens inside". Otherwise a bar straddling the close could set a session extreme from out-of-session price action.
+
 ## Open items for Phase 2
 
-1. **`SessionDetector` is the first task**, and it owns the judgement the normalizer deliberately withholds: which absences are weekends/holidays vs data faults. Its first real acceptance case: after the 2024-03-08 weekend, **EURUSD reopened 2024-03-10 21:00 UTC but XAUUSD at 22:00 UTC** — a real observed DST artifact.
-2. **Multi-year data availability is UNCONFIRMED.** Only 4 days are proven. Whether Dukascopy has complete 2021-2025 coverage for both symbols has not been checked, so the Master Plan §20 split is unvalidated. Run a metered background backfill early.
-3. **`StorageConfig.raw_root` is defined but unused.** The `.bi5` cache serves as the raw immutable archive. Decide whether decoded ticks are also persisted as Parquet.
-4. **The outbox lane is not wired.** `app/db.py` is not ported — everything runs file-only. Port it when a long-running lane actually needs it.
-5. **No cross-vendor data comparison.** Zero ticks were rejected, but internal consistency is a weaker claim than agreement with a second source.
+1. **R2-02 SwingDetector is next.** The confirmation lag (`right` bars) is the whole point — a swing at bar *i* is not knowable until bar `i + right` closes.
+2. **No holiday calendar yet.** A bank holiday looks like any other empty window: correctly no occurrence, but the detector cannot say *why*. R2-04 ("previous day") likely forces the issue.
+3. **Multi-year data availability is UNCONFIRMED.** Only 4 days are proven. Whether Dukascopy has complete 2021-2025 coverage for both symbols has not been checked, so the Master Plan §20 split is unvalidated. Run a metered background backfill early.
+4. **`StorageConfig.raw_root` is defined but unused.** The `.bi5` cache serves as the raw immutable archive. Decide whether decoded ticks are also persisted as Parquet.
+5. **The outbox lane is not wired.** `app/db.py` is not ported — everything runs file-only. Port it when a long-running lane actually needs it.
+6. **No cross-vendor data comparison.** Zero ticks were rejected, but internal consistency is a weaker claim than agreement with a second source.

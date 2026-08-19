@@ -164,6 +164,33 @@ class MarketDataConfig:
 
 
 @dataclass(frozen=True)
+class SessionConfig:
+    """Trading-session definitions (R2-01).
+
+    CLAUDE.md rule 4 — session boundaries are configuration, never literals inside
+    detector logic. ``ICT_SESSIONS_JSON`` accepts either an inline JSON array or a
+    path to a JSON file, each element being::
+
+        {"name": "london", "timezone": "Europe/London",
+         "start_local": "08:00", "end_local": "16:30", "kind": "session"}
+
+    Times are **local to the named timezone**, never UTC — that is what makes DST
+    handling automatic. Unset means the documented defaults in
+    ``ict/sessions.py`` / ``docs/ict/sessions.md``.
+    """
+
+    definitions_json: str | None = None
+
+    @classmethod
+    def from_env(cls) -> SessionConfig:
+        return cls(definitions_json=os.environ.get("ICT_SESSIONS_JSON") or None)
+
+    @property
+    def is_overridden(self) -> bool:
+        return self.definitions_json is not None
+
+
+@dataclass(frozen=True)
 class KronosConfig:
     """Phase 5 — devops/opt-in gated. Empty until weights are provisioned."""
 
@@ -240,6 +267,7 @@ class Settings:
     database: DatabaseConfig = field(default_factory=DatabaseConfig.from_env)
     storage: StorageConfig = field(default_factory=StorageConfig.from_env)
     market_data: MarketDataConfig = field(default_factory=MarketDataConfig.from_env)
+    sessions: SessionConfig = field(default_factory=SessionConfig.from_env)
     kronos: KronosConfig = field(default_factory=KronosConfig.from_env)
     llm: LlmConfig = field(default_factory=LlmConfig.from_env)
     ingest_poller: PollerConfig = field(default_factory=lambda: PollerConfig.for_lane("ingest"))
@@ -251,6 +279,7 @@ class Settings:
             database=DatabaseConfig.from_env(),
             storage=StorageConfig.from_env(),
             market_data=MarketDataConfig.from_env(),
+            sessions=SessionConfig.from_env(),
             kronos=KronosConfig.from_env(),
             llm=LlmConfig.from_env(),
             ingest_poller=PollerConfig.for_lane("ingest"),
