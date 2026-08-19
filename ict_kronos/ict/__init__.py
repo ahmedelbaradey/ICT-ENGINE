@@ -11,7 +11,9 @@ from .contract import (
     EventType,
     IctEvent,
     assert_no_leakage,
+    assert_observable,
     events_to_frame,
+    filter_observable,
 )
 from .sessions import (
     DEFAULT_SESSIONS,
@@ -26,6 +28,7 @@ from .sessions import (
     resolve_window,
     resolve_windows,
 )
+from .swings import SwingConfig, SwingDetector, SwingPoint, TiePolicy, reference_pivots
 
 __all__ = [
     "DEFAULT_SESSIONS",
@@ -41,9 +44,16 @@ __all__ = [
     "SessionKind",
     "SessionOccurrence",
     "SessionWindow",
+    "SwingConfig",
+    "SwingDetector",
+    "SwingPoint",
+    "TiePolicy",
     "assert_no_leakage",
+    "assert_observable",
     "events_to_frame",
+    "filter_observable",
     "load_definitions",
+    "reference_pivots",
     "resolve_window",
     "resolve_windows",
 ]

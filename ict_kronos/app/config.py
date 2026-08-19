@@ -191,6 +191,31 @@ class SessionConfig:
 
 
 @dataclass(frozen=True)
+class SwingDetectionConfig:
+    """Fractal swing parameters (R2-02).
+
+    ``left``/``right`` are BAR COUNTS. ``right`` is the confirmation lag: a swing at
+    bar *i* is not knowable until bar ``i + right`` closes. It must be >= 1 — a
+    zero-lag pivot is not a swing.
+
+    ``tie_policy`` resolves plateaus (consecutive bars sharing the extreme):
+    ``first`` | ``last`` | ``strict`` | ``all`` — see ``docs/ict/swings.md``.
+    """
+
+    left: int = 2
+    right: int = 2
+    tie_policy: str = "first"
+
+    @classmethod
+    def from_env(cls) -> SwingDetectionConfig:
+        return cls(
+            left=_get_int("ICT_SWING_LEFT", 2),
+            right=_get_int("ICT_SWING_RIGHT", 2),
+            tie_policy=os.environ.get("ICT_SWING_TIE_POLICY", "first").strip().lower(),
+        )
+
+
+@dataclass(frozen=True)
 class KronosConfig:
     """Phase 5 — devops/opt-in gated. Empty until weights are provisioned."""
 
@@ -268,6 +293,7 @@ class Settings:
     storage: StorageConfig = field(default_factory=StorageConfig.from_env)
     market_data: MarketDataConfig = field(default_factory=MarketDataConfig.from_env)
     sessions: SessionConfig = field(default_factory=SessionConfig.from_env)
+    swings: SwingDetectionConfig = field(default_factory=SwingDetectionConfig.from_env)
     kronos: KronosConfig = field(default_factory=KronosConfig.from_env)
     llm: LlmConfig = field(default_factory=LlmConfig.from_env)
     ingest_poller: PollerConfig = field(default_factory=lambda: PollerConfig.for_lane("ingest"))
@@ -280,6 +306,7 @@ class Settings:
             storage=StorageConfig.from_env(),
             market_data=MarketDataConfig.from_env(),
             sessions=SessionConfig.from_env(),
+            swings=SwingDetectionConfig.from_env(),
             kronos=KronosConfig.from_env(),
             llm=LlmConfig.from_env(),
             ingest_poller=PollerConfig.for_lane("ingest"),

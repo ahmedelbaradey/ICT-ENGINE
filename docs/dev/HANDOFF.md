@@ -2,7 +2,7 @@
 
 **Protocol (ported from Learnexia):** read this before starting work; update it before opening your PR, in the same PR. Prune what has gone stale. If it isn't here, assume the next person won't know it.
 
-Last updated: **2026-08-19** — end of R2-01 (SessionDetector).
+Last updated: **2026-08-19** — end of R2-02 (SwingDetector).
 
 ---
 
@@ -14,7 +14,7 @@ Last updated: **2026-08-19** — end of R2-01 (SessionDetector).
 | 0.5 — Foundation | ✅ Complete |
 | 1 — Market data layer | ✅ Complete |
 | 1.5 — Real-data proof | ✅ APPROVED |
-| **2 — ICT engine** | 🔵 **In progress — R2-01 done; R2-02 next** |
+| **2 — ICT engine** | 🔵 **In progress — R2-01, R2-02 done; R2-03 next** |
 | 3–10 | ⬜ Not started (5 blocked on GPU) |
 
 ### Phase 2 stories
@@ -22,8 +22,8 @@ Last updated: **2026-08-19** — end of R2-01 (SessionDetector).
 | Story | Status |
 |---|---|
 | R2-01 SessionDetector | ✅ Done — 136 tests |
-| R2-02 SwingDetector | ⬜ **Next** |
-| R2-03 StructureDetector | ⬜ |
+| R2-02 SwingDetector | ✅ Done — 139 tests |
+| R2-03 StructureDetector | ⬜ **Next** |
 | R2-04 LiquidityDetector | ⬜ |
 | R2-05 FVGDetector | ⬜ |
 | R2-06 PremiumDiscount | ⬜ |
@@ -45,6 +45,8 @@ Stories in [user-stories/](../../user-stories/README.md), tasks in [tasks/](../.
 7. **Work intake adopts Learnexia's convention**, not its files: `user-stories/` + `tasks/` markdown with the ask-the-lead-first rule. No second task system, and Learnexia is untouched.
 8. **The Phase 2 detector contract is fixed** — [`ict/contract.py`](../../ict_kronos/ict/contract.py). `confirmation_timestamp` is the earliest instant an event was knowable, and the constructor refuses any event confirmed before it occurred. Every detector uses it; do not invent a per-detector variant.
 9. **Sessions are defined in LOCAL time, never UTC.** That is what makes DST automatic. Overridable via `ICT_SESSIONS_JSON`.
+10. **Swings use the n-bar fractal definition**, chosen because its confirmation lag is BOUNDED and streamable (ZigZag/ATR variants are not). `right >= 1` is enforced — a zero-lag pivot is not a swing.
+11. **`filter_observable()` is the one downstream gate.** Feature assembly (R2-07) must go through it. Do not hand-roll a confirmation filter.
 
 ---
 
@@ -141,11 +143,18 @@ Full results: [DATA_PROOF.md](../financial-ai/DATA_PROOF.md). A re-run against t
 - **A session is only emitted once its window has fully elapsed within the observed data.** Without that rule the still-open session looks complete and batch disagrees with streaming replay.
 - **Bar membership is fully-contained**, not "opens inside". Otherwise a bar straddling the close could set a session extreme from out-of-session price action.
 
+## Gotchas found in R2-02
+
+- **The fractal window is POSITIONAL over bars present, not wall-clock.** Across a market gap the confirmation lag exceeds `(right+1) * bar_duration`. Real example: an EURUSD pivot at Fri 2024-03-08 21:55 confirms Sun 2024-03-10 21:15 — a lag of **1d 23:20**. Correct (the confirming bars did not exist), but do NOT compute expected latency as `right * duration`.
+- **`series.rolling(n).max().shift(-right)` is easy to get off by one.** `reference_pivots()` is a deliberately naive reference kept in the module purely so tests can prove the fast path. Keep it.
+- **Plateaus are common in real data** — especially XAUUSD, which quantises hard. The tie policy is therefore load-bearing, not a nicety. Default `FIRST` gives exactly one swing per plateau at the earliest confirmable timestamp.
+
 ## Open items for Phase 2
 
-1. **R2-02 SwingDetector is next.** The confirmation lag (`right` bars) is the whole point — a swing at bar *i* is not knowable until bar `i + right` closes.
-2. **No holiday calendar yet.** A bank holiday looks like any other empty window: correctly no occurrence, but the detector cannot say *why*. R2-04 ("previous day") likely forces the issue.
-3. **Multi-year data availability is UNCONFIRMED.** Only 4 days are proven. Whether Dukascopy has complete 2021-2025 coverage for both symbols has not been checked, so the Master Plan §20 split is unvalidated. Run a metered background backfill early.
-4. **`StorageConfig.raw_root` is defined but unused.** The `.bi5` cache serves as the raw immutable archive. Decide whether decoded ticks are also persisted as Parquet.
-5. **The outbox lane is not wired.** `app/db.py` is not ported — everything runs file-only. Port it when a long-running lane actually needs it.
-6. **No cross-vendor data comparison.** Zero ticks were rejected, but internal consistency is a weaker claim than agreement with a second source.
+1. **R2-03 StructureDetector is next.** It consumes CONFIRMED swings only, so it inherits the swing lag rather than bypassing it.
+2. **Swings are unranked.** Many minor pivots at `left=right=2`. `strength` (prominence) is available for filtering, but R2-03/R2-07 will likely need a significance ranking.
+3. **No holiday calendar yet.** A bank holiday looks like any other empty window: correctly no occurrence, but the detector cannot say *why*. R2-04 ("previous day") likely forces the issue.
+4. **Multi-year data availability is UNCONFIRMED.** Only 4 days are proven. Whether Dukascopy has complete 2021-2025 coverage for both symbols has not been checked, so the Master Plan §20 split is unvalidated. Run a metered background backfill early.
+5. **`StorageConfig.raw_root` is defined but unused.** The `.bi5` cache serves as the raw immutable archive. Decide whether decoded ticks are also persisted as Parquet.
+6. **The outbox lane is not wired.** `app/db.py` is not ported — everything runs file-only. Port it when a long-running lane actually needs it.
+7. **No cross-vendor data comparison.** Zero ticks were rejected, but internal consistency is a weaker claim than agreement with a second source.

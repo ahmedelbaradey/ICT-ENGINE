@@ -219,6 +219,37 @@ def events_to_frame(events: list[IctEvent]) -> pd.DataFrame:
     return frame
 
 
+def filter_observable(events: list[IctEvent], as_of: datetime) -> list[IctEvent]:
+    """The events a decision timestamped ``as_of`` is allowed to see.
+
+    **This is the single gate every downstream feature builder must go through.**
+    R2-07 assembles feature vectors from detector output, and the only thing standing
+    between "a swing exists at 09:05" and "a model at 09:05 knew about it" is this
+    filter. Keeping it here — one reviewed function, like ``align_htf_context`` for
+    timeframes — is what makes the rule enforceable rather than merely stated.
+
+    Confirmation exactly at ``as_of`` counts as observable: the information is known
+    at that instant.
+    """
+    if as_of.tzinfo is None:
+        raise ContractViolation(f"as_of must be timezone-aware UTC; got naive {as_of!r}")
+    return [event for event in events if event.confirmation_timestamp <= as_of]
+
+
+def assert_observable(events: list[IctEvent], as_of: datetime) -> None:
+    """Fail loudly if any event in ``events`` was not yet knowable at ``as_of``.
+
+    The assertion form of :func:`filter_observable`, for tests and for defensive
+    checks inside feature assembly.
+    """
+    leaking = [e for e in events if not e.is_observable_at(as_of)]
+    if leaking:
+        raise ContractViolation(
+            f"{len(leaking)} event(s) are not observable at {as_of.isoformat()}; "
+            f"first offender: {leaking[0].as_dict()}"
+        )
+
+
 def assert_no_leakage(events: list[IctEvent]) -> None:
     """Fail loudly if any event claims to be knowable before it happened.
 

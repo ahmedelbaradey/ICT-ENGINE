@@ -11,8 +11,8 @@ adopted silently.
 | Detector | Story | Doc | Status |
 |---|---|---|---|
 | SessionDetector | [R2-01](../../user-stories/Phase-2-ICT-Engine/R2-01-session-detector.md) | [sessions.md](sessions.md) | ✅ Done |
-| SwingDetector | R2-02 | — | ⬜ Not started |
-| StructureDetector | R2-03 | — | ⬜ Not started |
+| SwingDetector | [R2-02](../../user-stories/Phase-2-ICT-Engine/R2-02-swing-detection.md) | [swings.md](swings.md) | ✅ Done |
+| StructureDetector | R2-03 | — | ⬜ **Next** |
 | LiquidityDetector | R2-04 | — | ⬜ Not started |
 | FVGDetector | R2-05 | — | ⬜ Not started |
 | PremiumDiscountCalculator | R2-06 | — | ⬜ Not started |
