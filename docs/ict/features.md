@@ -42,6 +42,12 @@ observed values silently renumbers between datasets.
 Sign is meaningful throughout: **negative is bearish-leaning, positive bullish-leaning**,
 so a linear model reads the sign correctly without one-hot expansion.
 
+`ZONE_CODES` is **declared but not currently projected**: the dealing-range zone reaches
+the vector as the three flags `is_premium` / `is_discount` / `is_equilibrium` rather than
+as a single code, because those also carry `None` for "there is no range" without
+reserving an integer for it. The table is kept and tested so a future single-column
+encoding cannot be invented with a different numbering.
+
 `BIAS_CODES` maps **both** `unknown` and `neutral` to `0`. They are different facts and
 `ICTMarketState.bias.bias` keeps them apart; the vector collapses them because a linear
 model has no use for two distinct zeroes. **If the distinction matters, read the state** —

@@ -636,6 +636,140 @@ class TestConfiguration:
         assert builder().swing_config.left == 2
 
 
+class TestTheDegenerateRangeSentinel:
+    """R2-07 audit regression.
+
+    R2-06 returns ``math.nan`` from ``position_of`` for a zero-width range — ITS
+    sentinel for "undefined". This layer's sentinel for a value that cannot exist is
+    ``None``. Passing the NaN straight through put a second missing-value convention
+    into ``as_dict()`` and, worse, broke two contracts at once: NaN is not equal to
+    itself, so ``from_dict(as_dict()) == v`` failed and a batch/prefix state comparison
+    would have reported a spurious streaming difference.
+
+    The detector never produces a degenerate range (dealing_range.md §4), so this is a
+    defined path rather than an observed one — which is exactly why it needs a test.
+    """
+
+    @staticmethod
+    def _degenerate_view():
+        """A real engine view whose active dealing range has been made zero-width."""
+        from dataclasses import replace as dc_replace
+
+        engine = view(TREND)
+        ranges = engine.dealing_range.ranges
+        assert ranges, "fixture must produce a dealing range for this test to mean anything"
+        flat = [dc_replace(r, high_price=r.low_price, equilibrium_price=r.low_price) for r in ranges]
+        return dc_replace(engine, dealing_range=dc_replace(engine.dealing_range, ranges=flat))
+
+    def test_position_is_none_not_nan(self):
+        state = self._degenerate_view().states()[-1]
+        assert state.premium_discount.range_id is not None, "the range itself is still there"
+        assert state.premium_discount.width_points == 0.0
+        assert state.premium_discount.percentage_position is None
+
+    def test_a_degenerate_range_is_still_distinguishable_from_no_range(self):
+        """``None`` for the position must not collapse the two cases."""
+        degenerate = self._degenerate_view().states()[-1].premium_discount
+        absent = view(BARELY).states()[-1].premium_discount
+        assert degenerate.percentage_position is absent.percentage_position is None
+        assert degenerate.range_id is not None and absent.range_id is None
+        assert degenerate.width_points == 0.0 and absent.width_points is None
+
+    def test_no_state_field_ever_carries_nan(self):
+        """The invariant behind the fix: NaN belongs to ``as_row``, nowhere else."""
+        import math
+        from dataclasses import fields as dc_fields
+
+        for state in (*self._degenerate_view().states(), *view(TREND).states()):
+            for section in dc_fields(state):
+                item = getattr(state, section.name)
+                if not hasattr(item, "__dataclass_fields__"):
+                    continue
+                for spec in dc_fields(item):
+                    value = getattr(item, spec.name)
+                    assert not (
+                        isinstance(value, float) and math.isnan(value)
+                    ), f"{section.name}.{spec.name} carries NaN; missing must be None"
+
+    def test_the_state_still_round_trips_and_compares_equal(self):
+        from ict_kronos.ict import ICTFeatureVector
+
+        state = self._degenerate_view().states()[-1]
+        assert state == self._degenerate_view().states()[-1]
+
+        vector = ICTFeatureVector.from_state(state)
+        payload = vector.as_dict()
+        assert payload["percentage_position"] is None
+        assert ICTFeatureVector.from_dict(payload) == vector
+
+
+class TestProvenanceEnumerationIsComplete:
+    """R2-07 audit regression: ``source_ids`` claims to emit EVERY provenance id.
+
+    It missed ``premium_discount.source_break_id``, which left one emitted id outside
+    every provenance check in the suite. This test is the anti-rot the method's own
+    docstring promises, so the next added id field cannot slip out the same way.
+    """
+
+    @staticmethod
+    def _id_fields(state):
+        from dataclasses import fields as dc_fields
+
+        for section in dc_fields(state):
+            item = getattr(state, section.name)
+            if not hasattr(item, "__dataclass_fields__"):
+                continue
+            for spec in dc_fields(item):
+                if spec.name.endswith("_id") or spec.name.endswith("_ids"):
+                    yield section.name, spec.name
+
+    def test_every_id_field_on_the_state_is_enumerated(self):
+        """Marker-substitution, because comparing VALUES cannot detect the omission.
+
+        The dealing range's ``source_break_id`` normally equals ``latest_break_id``, so
+        a test asking "does this value appear somewhere in source_ids()" passed while
+        the field itself was unenumerated. Stamping each field with a unique marker
+        asks the question that actually matters: is this FIELD read?
+        """
+        from dataclasses import replace as dc_replace
+
+        state = last_state()
+        declared = list(self._id_fields(state))
+        assert declared, "the state must declare id fields for this test to mean anything"
+
+        for section, name in declared:
+            marker = f"marker:{section}.{name}"
+            original = getattr(getattr(state, section), name)
+            stamped = (marker,) if isinstance(original, tuple) else marker
+            patched = dc_replace(state, **{section: dc_replace(getattr(state, section), **{name: stamped})})
+            assert any(
+                marker in ids for ids in patched.source_ids().values()
+            ), f"{section}.{name} is emitted by the state but source_ids() never reads it"
+
+    def test_the_dealing_ranges_originating_break_is_grouped_as_structure(self):
+        """Not merely enumerated — enumerated under the registry that can resolve it."""
+        from dataclasses import replace as dc_replace
+
+        frame = bars(TREND)
+        engine = builder().analyse(frame, SYM, M5)
+        breaks = {structure_break_id(b): b for b in engine.structure.breaks}
+
+        checked = 0
+        for state in engine.states():
+            found = state.premium_discount.source_break_id
+            if found is None:
+                continue
+            assert found in breaks, "the range's break id must resolve to a real break"
+
+            marker = "marker:source_break"
+            patched = dc_replace(
+                state, premium_discount=dc_replace(state.premium_discount, source_break_id=marker)
+            )
+            assert marker in patched.source_ids()["structure"]
+            checked += 1
+        assert checked > 0, "the fixture must produce a range with an originating break"
+
+
 class TestTimeframeLocality:
     def test_the_state_reports_the_timeframe_it_was_built_from(self):
         for timeframe in (Timeframe.M5, Timeframe.M15):

@@ -138,6 +138,15 @@ and a consumer that conflates them is measuring something else.
 In the flat vector the same distinction survives: `as_dict()` emits `None`, and
 `as_row()` emits `math.nan`. **Never zero.**
 
+**NaN belongs to `as_row()` and nowhere else.** R2-06 returns `math.nan` from
+`position_of` for a degenerate (zero-width) range — *its* sentinel for "undefined".
+This layer translates that to `None` at the boundary, so there is one missing-value
+convention rather than two. It is not a lost fact: `range_id` is still present and
+`width_points` is `0`, which is exactly what distinguishes a degenerate range from no
+range at all. The translation also keeps record equality meaningful — NaN is not equal
+to itself, so a state carrying one would fail both the serialisation round-trip and the
+batch-versus-prefix comparison for a reason that has nothing to do with the market.
+
 ## 8. Distances declare their unit
 
 Every distance in the state and the vector is expressed in **instrument points** and

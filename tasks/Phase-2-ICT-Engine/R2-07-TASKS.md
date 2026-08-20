@@ -11,8 +11,8 @@ Feature catalogue: [features.md](../../docs/ict/features.md)
 |---|---|---|---|
 | R2-07-a | Implementation against the shared detector contract | Aggregation only — every value comes from a detector's own point-in-time API | ✅ |
 | R2-07-b | Configuration wiring — no hardcoded trading constants | `MarketStateConfig`, one setting; detector configs injectable for reproducibility | ✅ |
-| R2-07-c | Unit tests: normal, edge, malformed, boundary, timeframe, timestamp | 62 state + 59 vector | ✅ |
-| R2-07-d | **Batch vs streaming-replay equivalence** | prefix at every cut, true bar-by-bar, states AND vectors | ✅ |
+| R2-07-c | Unit tests: normal, edge, malformed, boundary, timeframe, timestamp | state + vector unit suites, plus the audit regressions below | ✅ |
+| R2-07-d | **Batch vs streaming-replay equivalence** | 1H every cut, 4H true bar-by-bar, states AND vectors; 15m/5m/1m verified in the audit sweep below | ✅ |
 | R2-07-e | **Leakage tests** | future / confirming-bar / control / naive, plus a per-component sweep | ✅ |
 | R2-07-f | **Real-data acceptance** — EURUSD + XAUUSD | 1m/5m/15m/1H/4H | ✅ |
 | R2-07-g | **Documentation** | `market_state.md` (13 §) + `features.md` (13 §, every feature's unit / range / missing semantics) | ✅ |
@@ -41,6 +41,28 @@ Feature catalogue: [features.md](../../docs/ict/features.md)
 | R2-07-18 | Performance measured, not prematurely optimised | Two genuine design fixes, then measured; see HANDOFF | ✅ |
 | R2-07-19 | Regression: R2-01 → R2-06 untouched | No approved detector source changed | ✅ |
 | R2-07-20 | Full suite + ruff + black; one local commit; STOP | No push | ✅ |
+
+## Post-completion audit (2026-08-20)
+
+Two genuine correctness defects were found and fixed; no approved detector was touched.
+
+| # | Defect | Where | Fix | Regression test |
+|---|---|---|---|---|
+| 1 | R2-06's `math.nan` "undefined position" sentinel was passed straight into `PremiumDiscountContext.percentage_position`, where this layer's sentinel for a value that cannot exist is `None`. NaN is not equal to itself, so a state carrying one broke `from_dict(as_dict()) == v` **and** would have reported a spurious batch-vs-prefix streaming difference. | `market_state.py::_premium_discount_at` | Translate NaN → `None` at the boundary; NaN belongs to `as_row()` alone | `TestTheDegenerateRangeSentinel` (4 tests) |
+| 2 | `source_ids()` — which claims to enumerate *every* provenance id — omitted `premium_discount.source_break_id`, leaving one emitted id outside every provenance check in the suite | `market_state.py::source_ids` | Enumerate it under `structure`, the registry that resolves it | `TestProvenanceEnumerationIsComplete` (2 tests, marker-substitution so a coinciding value cannot mask the gap) |
+
+Neither defect was reachable from the fixture data: the detector never produces a
+degenerate range, and the omitted id happened to equal `latest_break_id`. Both are
+defined paths, which is why they needed tests rather than luck.
+
+Audit checks that passed with no change: single observability gate (package-wide grep
+plus a four-way mutation test of the guard), behavioural leakage with a non-vacuous
+control, confirmation-boundary semantics, identity collisions across nine detector
+families, bias `UNKNOWN` ≠ `NEUTRAL`, timeframe locality, and R2-01 → R2-06 regression.
+
+`ZONE_CODES` is declared and tested but not projected — the zone reaches the vector as
+three flags instead. Recorded in [features.md](../../docs/ict/features.md) §2 rather
+than removed, so a future single-column encoding cannot invent a different numbering.
 
 ## Divergence from the story text
 

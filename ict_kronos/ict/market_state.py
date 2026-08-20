@@ -29,6 +29,7 @@ Three rules carry the module:
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass, field, fields, replace
 from datetime import UTC, datetime, timedelta
@@ -365,6 +366,10 @@ class ICTMarketState:
                 self.structure.latest_bos_id,
                 self.structure.latest_mss_id,
                 self.structure.latest_choch_id,
+                # The dealing range's originating break is a STRUCTURE id and resolves
+                # against the same registry. Omitting it left one emitted id outside
+                # every provenance check -- exactly the rot this method exists to stop.
+                self.premium_discount.source_break_id,
             ),
             "liquidity_level": _ids(
                 *self.liquidity.active_buy_side_ids,
@@ -732,6 +737,13 @@ class ICTEngineView:
         if item is None:
             return PremiumDiscountContext()
 
+        # R2-06 returns NaN for a degenerate (zero-width) range -- ITS sentinel for
+        # "position is undefined". This layer's sentinel for a value that cannot exist
+        # is ``None`` (docs §7); NaN belongs to ``as_row`` alone. Translating here keeps
+        # one missing-value convention instead of two, and keeps record equality
+        # meaningful -- NaN is not equal to itself, so a state carrying one would fail
+        # both the serialisation round-trip and the batch/prefix comparison.
+        position = item.position_of(price)
         return PremiumDiscountContext(
             range_id=item.range_id,
             high_anchor_id=item.high_source_id,
@@ -744,7 +756,7 @@ class ICTEngineView:
             width_points=_points(item.width, self.symbol),
             # Carried through UNCLAMPED: outside [0, 1] is the common case, because
             # R2-06 anchors on the BROKEN structural level (dealing_range.md §11).
-            percentage_position=item.position_of(price),
+            percentage_position=None if math.isnan(position) else position,
             distance_from_equilibrium_points=_points(price - item.equilibrium_price, self.symbol),
             zone=self._zone_of(item, price),
         )

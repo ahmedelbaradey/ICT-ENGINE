@@ -273,6 +273,18 @@ Full results: [DATA_PROOF.md](../financial-ai/DATA_PROOF.md). A re-run against t
 - **`ICTFeatureVector` collapses `unknown` and `neutral` bias to `0`** — a deliberate,
   documented lossy projection. `ICTMarketState` keeps them apart, and that is the place
   to read if the distinction matters.
+- **A NaN inside a record silently breaks equality, and equality is a load-bearing
+  assertion here.** R2-06 returns `math.nan` for a degenerate range's position; carried
+  into the state it broke `from_dict(as_dict()) == v` and would have made a
+  batch-vs-prefix comparison report a streaming difference that has nothing to do with
+  the market. NaN now belongs to `as_row()` and nowhere else — one missing-value
+  convention, not two. Found by the R2-07 audit, not by the fixture: the detector never
+  produces a degenerate range.
+- **A provenance enumeration is only as good as its coverage test, and a value-based
+  test is not one.** `source_ids()` omitted the dealing range's `source_break_id` for
+  the whole story, and no test noticed because that id usually *equals*
+  `latest_break_id`. The test that catches it stamps each field with a unique marker
+  and asks whether the FIELD is read — not whether the value appears somewhere.
 
 ## Gotchas found in R2-06 (dealing range)
 
