@@ -118,6 +118,13 @@ from .true_daily_open import (
     TrueDailyOpenDetector,
     reference_true_daily_opens,
 )
+from .unicorn import (
+    Unicorn,
+    UnicornAnalysis,
+    UnicornConfig,
+    UnicornDetector,
+    UnicornStatus,
+)
 
 __all__ = [
     "BalancedPriceRange",
@@ -196,6 +203,11 @@ __all__ = [
     "TrueDailyOpen",
     "TrueDailyOpenConfig",
     "TrueDailyOpenDetector",
+    "Unicorn",
+    "UnicornAnalysis",
+    "UnicornConfig",
+    "UnicornDetector",
+    "UnicornStatus",
     "ZoneFillUpdate",
     "ZoneStatus",
     "assert_no_leakage",

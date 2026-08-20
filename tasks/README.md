@@ -26,6 +26,6 @@ Per-story task breakdown. Convention ported from Learnexia (see [docs/dev/WORK_I
 | [R2-05.6](Phase-2-ICT-Engine/R2-05.6-TASKS.md) | RDRB | ✅ Done |
 | [R2-05.7](Phase-2-ICT-Engine/R2-05.7-TASKS.md) | CISD | ✅ Done |
 | [R2-05.8](Phase-2-ICT-Engine/R2-05.8-TASKS.md) | CHoCH revision | ✅ Reviewed — no change |
-| [R2-05.9](Phase-2-ICT-Engine/R2-05.9-TASKS.md) | Unicorn Model | ⛔ Deferred |
+| [R2-05.9](Phase-2-ICT-Engine/R2-05.9-TASKS.md) | Unicorn Model | ✅ Done |
 | [R2-06](Phase-2-ICT-Engine/R2-06-TASKS.md) | Premium / Discount | ⬜ Not started |
 | [R2-07](Phase-2-ICT-Engine/R2-07-TASKS.md) | ICT feature integration | ⬜ Not started |

@@ -108,6 +108,12 @@ class EventType(StrEnum):
     CISD_BULLISH = "cisd_bullish"
     CISD_BEARISH = "cisd_bearish"
 
+    # --- R2-05.9 unicorn ----------------------------------------------------
+    #: A Breaker overlapping a SAME-polarity FVG. The deepest composite in Phase 2:
+    #: its provenance reaches FVG, Breaker and (transitively) Order Block.
+    UNICORN_BULLISH = "unicorn_bullish"
+    UNICORN_BEARISH = "unicorn_bearish"
+
     # --- R2-06 premium / discount ------------------------------------------
     DEALING_RANGE = "dealing_range"
 

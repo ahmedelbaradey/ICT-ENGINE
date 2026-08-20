@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from ict_kronos.app.config import (
+    CompositeIctConfig,
     KronosBackendKind,
     KronosConfig,
     LlmBackendKind,
@@ -28,6 +29,12 @@ _ENV_VARS = (
     "KRONOS_WEIGHTS_DIR",
     "MARKET_DATA_MAX_GAP_BARS",
     "LOG_LEVEL",
+    "ICT_OB_REQUIRE_FVG",
+    "ICT_BREAKER_REQUIRE_STRUCTURE_BREAK",
+    "ICT_RDRB_WICK_TOLERANCE_POINTS",
+    "ICT_UNICORN_MAX_BARS_FROM_BREAKER",
+    "ICT_UNICORN_MIN_OVERLAP_POINTS",
+    "ICT_UNICORN_REQUIRE_FULL_CONTAINMENT",
 )
 
 
@@ -142,3 +149,47 @@ class TestKronosContextGuard:
         config = KronosConfig.from_env()
         assert config.is_configured
         assert config.weights_dir == Path(real)
+
+
+class TestCompositeIctDefaultsAreTheDefinitionOfRecord:
+    """These defaults are not tuning knobs — each one encodes a decided semantic.
+
+    Asserted here so a future edit that flips one has to argue with a test rather
+    than slip through as a "reasonable default".
+    """
+
+    def test_an_order_block_never_silently_requires_a_gap(self):
+        """56% of real EURUSD 5m Order Blocks have no FVG at all (R2-05.3 audit)."""
+        assert CompositeIctConfig.from_env().ob_require_fvg is False
+
+    def test_not_every_broken_order_block_is_a_breaker(self):
+        assert CompositeIctConfig.from_env().breaker_require_structure_break is True
+
+    def test_rdrb_equality_is_a_violation(self):
+        """Tolerance 0 — C4 REACHING C2's protected wick violates it."""
+        assert CompositeIctConfig.from_env().rdrb_wick_tolerance_points == 0.0
+
+    def test_a_unicorn_needs_overlap_not_containment(self):
+        config = CompositeIctConfig.from_env()
+        assert config.unicorn_require_full_containment is False
+        assert config.unicorn_max_bars_from_breaker == 50
+        assert config.unicorn_min_overlap_points == 0.0
+
+
+class TestCompositeIctEnvOverrides:
+    def test_the_unicorn_window_is_env_overridable(self, monkeypatch):
+        monkeypatch.setenv("ICT_UNICORN_MAX_BARS_FROM_BREAKER", "8")
+        assert CompositeIctConfig.from_env().unicorn_max_bars_from_breaker == 8
+
+    def test_the_unicorn_containment_qualifier_is_env_overridable(self, monkeypatch):
+        monkeypatch.setenv("ICT_UNICORN_REQUIRE_FULL_CONTAINMENT", "true")
+        assert CompositeIctConfig.from_env().unicorn_require_full_containment is True
+
+    def test_the_minimum_overlap_is_env_overridable(self, monkeypatch):
+        monkeypatch.setenv("ICT_UNICORN_MIN_OVERLAP_POINTS", "25.5")
+        assert CompositeIctConfig.from_env().unicorn_min_overlap_points == 25.5
+
+    def test_composite_config_is_frozen(self):
+        config = CompositeIctConfig.from_env()
+        with pytest.raises(Exception):  # noqa: B017 - FrozenInstanceError
+            config.unicorn_max_bars_from_breaker = 3

@@ -327,6 +327,8 @@ class CompositeIctConfig:
       is a Breaker.
     * ``rdrb_wick_tolerance_points`` is 0 — C4 reaching C2's protected wick is a
       violation, so equality is invalid.
+    * ``unicorn_require_full_containment`` is **False**: the source asks whether a gap
+      *overlaps* the Breaker, not whether it sits inside it.
     """
 
     ifvg_trigger: str = "close_through_far_edge"
@@ -341,6 +343,12 @@ class CompositeIctConfig:
     rdrb_wick_tolerance_points: float = 0.0
     cisd_anchor: str = "series_open"
     cisd_min_leg_length: int = 1
+    #: R2-05.9 Unicorn — a Breaker overlapping a SAME-polarity FVG. The window is a
+    #: configured proxy for the source's informal "same structural leg"; containment
+    #: is OFF because the source requires overlap, not containment.
+    unicorn_max_bars_from_breaker: int = 50
+    unicorn_min_overlap_points: float = 0.0
+    unicorn_require_full_containment: bool = False
 
     @classmethod
     def from_env(cls) -> CompositeIctConfig:
@@ -357,6 +365,9 @@ class CompositeIctConfig:
             rdrb_wick_tolerance_points=_get_float("ICT_RDRB_WICK_TOLERANCE_POINTS", 0.0),
             cisd_anchor=os.environ.get("ICT_CISD_ANCHOR", "series_open").strip().lower(),
             cisd_min_leg_length=_get_int("ICT_CISD_MIN_LEG_LENGTH", 1),
+            unicorn_max_bars_from_breaker=_get_int("ICT_UNICORN_MAX_BARS_FROM_BREAKER", 50),
+            unicorn_min_overlap_points=_get_float("ICT_UNICORN_MIN_OVERLAP_POINTS", 0.0),
+            unicorn_require_full_containment=_get_bool("ICT_UNICORN_REQUIRE_FULL_CONTAINMENT", False),
         )
 
 

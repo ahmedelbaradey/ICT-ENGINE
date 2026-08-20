@@ -17,9 +17,9 @@ deliberately not implementing.
 > | **Order Block** | engulf + displacement + FVG (§5.3 "Q3") | the last opposing candle **or contiguous group** whose range is subsequently **closed through**; an FVG is **never** required unless explicitly configured |
 > | **RDRB** | two-candle, zone from surrounding wicks (§5.6) | **four candles** C1→C2→C3→C4; C2 holds the protected wick; bullish `C4.low > C2.low`, bearish `C4.high < C2.high`; confirmation at **C4's close** |
 >
-> Implemented: IFVG, Order Block, Breaker, BPR, RDRB, CISD. CHoCH was reviewed and
-> deliberately left unchanged (see `docs/ict/structure.md`). Unicorn is **not** built —
-> its inputs exist, the composite does not.
+> Implemented: IFVG, Order Block, Breaker, BPR, RDRB, CISD **and Unicorn**. CHoCH was
+> reviewed and deliberately left unchanged (see `docs/ict/structure.md`). The R2-05.x
+> composite layer is complete; see `docs/ict/unicorn.md` for the last of it.
 
 ---
 
@@ -385,6 +385,14 @@ overlapping one Breaker produce three Unicorns with three ids. The brief's
 "do not silently collapse multiple valid identities" is taken literally: no
 deduplication, no "best" selection, no merging of overlapping zones.
 
+> **Implemented as proposed** (R2-05.9). The consequence is visible on real bars and
+> worth stating plainly: because several gaps routinely overlap one Breaker, Unicorns
+> outnumber Breakers — 3081 Unicorns from 849 Breakers on EURUSD 1m over the four-day
+> fixture. The pair is part of the id, so all of them stay independently addressable.
+> The source calls the overlap "rare"; at `max_bars_from_breaker = 50` on 1m bars it is
+> not, and the window is the knob that governs that. See
+> [unicorn.md](unicorn.md) §12.
+
 ---
 
 ## 6. What this phase does not build
@@ -410,11 +418,13 @@ The output of R2-05.x is deterministic event information and nothing else.
 | BPR | `ict/bpr.py` | [bpr.md](bpr.md) | 23 |
 | RDRB | `ict/rdrb.py` | [rdrb.md](rdrb.md) | 38 |
 | CISD | `ict/cisd.py` | [cisd.md](cisd.md) | 28 |
+| Unicorn | `ict/unicorn.py` | [unicorn.md](unicorn.md) | 56 |
 | *(shared machinery)* | `ict/composites.py` | this document §3 | — |
-| *(cross-cutting)* | — | — | 94 leakage + 464 real-data |
+| *(cross-cutting)* | — | — | leakage + real-data suites, parametrised over all seven |
 
 **CHoCH** was reviewed and left unchanged; the reasoning is in
-[structure.md](structure.md) §5. **Unicorn** is not built — its inputs exist.
+[structure.md](structure.md) §5. **Unicorn** landed in R2-05.9 as a pure composite of
+Breaker ∩ same-polarity FVG — no new candle logic, three levels of provenance.
 
 **Two real defects were found by tests rather than by reasoning**, both composite
 identity collisions on real data: several FVGs can invert on the same bar, and several

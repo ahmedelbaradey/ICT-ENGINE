@@ -29,8 +29,8 @@ Deterministic ICT market-structure detection. **No LLM decides whether a pattern
 | [R2-05.6](Phase-2-ICT-Engine/R2-05.6-rdrb.md) | RDRB — redelivered rebalanced price range | — | ✅ Done |
 | [R2-05.7](Phase-2-ICT-Engine/R2-05.7-cisd.md) | CISD — change in state of delivery | — | ✅ Done |
 | [R2-05.8](Phase-2-ICT-Engine/R2-05.8-choch-revision.md) | CHoCH semantics revision | R2-03, R2-05.7 | ✅ Reviewed — no change |
-| [R2-05.9](Phase-2-ICT-Engine/R2-05.9-unicorn-model.md) | Unicorn — Breaker ∩ FVG | R2-05.4, R2-05 | ⛔ Deferred — inputs ready, composite not built |
-| [R2-06](Phase-2-ICT-Engine/R2-06-premium-discount.md) | Premium / Discount — dealing range, equilibrium, position | R2-02 | ⛔ Deferred until R2-05.9 |
+| [R2-05.9](Phase-2-ICT-Engine/R2-05.9-unicorn-model.md) | Unicorn — Breaker ∩ FVG | R2-05.4, R2-05 | ✅ Done |
+| [R2-06](Phase-2-ICT-Engine/R2-06-premium-discount.md) | Premium / Discount — dealing range, equilibrium, position | R2-02 | ⛔ Not started — R2-05.x is complete, so this is next |
 | [R2-07](Phase-2-ICT-Engine/R2-07-ict-feature-integration.md) | `ICTMarketState` / `ICTFeatureVector` integration | R2-01…R2-06 | ⛔ Deferred |
 
 ## Out of scope for Phase 2

@@ -64,6 +64,13 @@ tasks/
 
 The convention is recorded here and the directories will be created **when the lead approves the Phase 2 story breakdown** — per the ask-first rule, not pre-emptively.
 
+> **Superseded, kept for provenance.** The breakdown below was the *proposal*. The
+> approved and implemented numbering differs (R2-01 sessions, R2-02 swings, R2-03
+> structure, R2-04 liquidity, R2-05 FVG, R2-05.1 True Daily Open, R2-05.2 … R2-05.9 the
+> composite layer, R2-06 premium/discount). **R2-01 → R2-05.9 are complete**; R2-06 is
+> the next story. The live indexes are [user-stories/](../../user-stories/README.md) and
+> [tasks/](../../tasks/README.md) — read those, not this table.
+
 Proposed Phase 2 breakdown, for approval:
 
 | ID | Title | Notes |

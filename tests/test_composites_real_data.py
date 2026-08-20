@@ -1,4 +1,4 @@
-"""R2-05.2 real-data acceptance — EURUSD + XAUUSD, 2024-03-08 → 2024-03-11.
+"""R2-05.2/R2-05.9 real-data acceptance — EURUSD + XAUUSD, 2024-03-08 → 2024-03-11.
 
 Timeframes: 1m/5m/15m stored, 1H/4H derived by the R2-01 resampler.
 
@@ -31,6 +31,7 @@ from ict_kronos.ict import (
     OrderBlockDetector,
     RdrbDetector,
     StructureDetector,
+    UnicornDetector,
     assert_no_leakage,
     assert_provenance_resolves,
     assert_sources_observable_first,
@@ -59,6 +60,7 @@ DETECTORS = {
     "bpr": (BprDetector(), "bpr_id"),
     "rdrb": (RdrbDetector(), "rdrb_id"),
     "cisd": (CisdDetector(), "cisd_id"),
+    "unicorn": (UnicornDetector(breaker_config=UNGATED_BREAKER), "unicorn_id"),
 }
 
 
@@ -283,6 +285,61 @@ class TestRealCrossDetectorRelationships:
         frame = load(symbol, timeframe)
         for breaker in BreakerDetector(UNGATED_BREAKER).detect(frame, symbol, timeframe):
             assert breaker.confirmation_timestamp > breaker.source_order_block_confirmation
+
+    def test_unicorn_sources_resolve_on_real_bars(self, symbol, timeframe):
+        """Both parents AND the transitive Order Block, on every real combination."""
+        frame = load(symbol, timeframe)
+        detector = UnicornDetector(breaker_config=UNGATED_BREAKER)
+        unicorns = detector.detect(frame, symbol, timeframe)
+
+        breakers = {b.breaker_id: b for b in detector.breaker_detector.detect(frame, symbol, timeframe)}
+        gaps = {z.zone_id: z for z in FvgDetector().detect(frame, symbol, timeframe)}
+        blocks = {b.order_block_id: b for b in OrderBlockDetector().detect(frame, symbol, timeframe)}
+
+        assert_provenance_resolves(unicorns, breakers, id_fields=["source_breaker_id"])
+        assert_provenance_resolves(unicorns, gaps, id_fields=["source_fvg_id"])
+        assert_provenance_resolves(unicorns, blocks, id_fields=["source_order_block_id"])
+        for unicorn in unicorns:
+            sources = [breakers[unicorn.source_breaker_id], gaps[unicorn.source_fvg_id]]
+            assert_sources_observable_first(unicorn, sources, label="unicorn")
+            assert unicorn.confirmation_timestamp == max(s.confirmation_timestamp for s in sources)
+
+    def test_unicorn_polarity_always_matches_both_parents(self, symbol, timeframe):
+        frame = load(symbol, timeframe)
+        detector = UnicornDetector(breaker_config=UNGATED_BREAKER)
+        breakers = {b.breaker_id: b for b in detector.breaker_detector.detect(frame, symbol, timeframe)}
+        gaps = {z.zone_id: z for z in FvgDetector().detect(frame, symbol, timeframe)}
+
+        for unicorn in detector.detect(frame, symbol, timeframe):
+            assert unicorn.direction is breakers[unicorn.source_breaker_id].direction
+            assert unicorn.direction is gaps[unicorn.source_fvg_id].direction
+
+    def test_unicorn_zones_sit_inside_both_parents(self, symbol, timeframe):
+        """The intersection property, checked against real geometry rather than asserted."""
+        frame = load(symbol, timeframe)
+        detector = UnicornDetector(breaker_config=UNGATED_BREAKER)
+        breakers = {b.breaker_id: b for b in detector.breaker_detector.detect(frame, symbol, timeframe)}
+        gaps = {z.zone_id: z for z in FvgDetector().detect(frame, symbol, timeframe)}
+
+        for unicorn in detector.detect(frame, symbol, timeframe):
+            breaker = breakers[unicorn.source_breaker_id]
+            gap = gaps[unicorn.source_fvg_id]
+            assert unicorn.zone_top <= min(breaker.zone_top, gap.top)
+            assert unicorn.zone_bottom >= max(breaker.zone_bottom, gap.bottom)
+
+    def test_unicorn_cardinality_is_not_collapsed_on_real_bars(self, symbol):
+        """Several gaps per Breaker is the NORMAL case, and each keeps its own id."""
+        frame = load(symbol, Timeframe.M5)
+        unicorns = UnicornDetector(breaker_config=UNGATED_BREAKER).detect(frame, symbol, Timeframe.M5)
+        if not unicorns:
+            pytest.skip("no unicorns on this combination — a valid result")
+
+        per_breaker: dict[str, int] = {}
+        for unicorn in unicorns:
+            per_breaker[unicorn.source_breaker_id] = per_breaker.get(unicorn.source_breaker_id, 0) + 1
+
+        assert len({u.unicorn_id for u in unicorns}) == len(unicorns)
+        assert max(per_breaker.values()) >= 1
 
 
 class TestRealObservability:

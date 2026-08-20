@@ -2,7 +2,7 @@
 
 **Protocol (ported from Learnexia):** read this before starting work; update it before opening your PR, in the same PR. Prune what has gone stale. If it isn't here, assume the next person won't know it.
 
-Last updated: **2026-08-20** — end of R2-05.2 (six composite detectors).
+Last updated: **2026-08-20** — end of R2-05.x. The composite ICT layer is COMPLETE (seven detectors, Unicorn included).
 
 ---
 
@@ -14,7 +14,7 @@ Last updated: **2026-08-20** — end of R2-05.2 (six composite detectors).
 | 0.5 — Foundation | ✅ Complete |
 | 1 — Market data layer | ✅ Complete |
 | 1.5 — Real-data proof | ✅ APPROVED |
-| **2 — ICT engine** | 🔵 **In progress — R2-01..R2-05.2 done; Unicorn + R2-06 DEFERRED** |
+| **2 — ICT engine** | 🔵 **In progress — R2-01..R2-05.9 done; R2-06 NOT STARTED** |
 | 3–10 | ⬜ Not started (5 blocked on GPU) |
 
 ### Phase 2 stories
@@ -34,8 +34,8 @@ Last updated: **2026-08-20** — end of R2-05.2 (six composite detectors).
 | R2-05.6 RDRB | ✅ Done — FOUR-candle definition |
 | R2-05.7 CISD | ✅ Done |
 | R2-05.8 CHoCH revision | ✅ Reviewed — no behaviour change |
-| R2-05.9 Unicorn | ⛔ Deferred — inputs ready |
-| R2-06 PremiumDiscount | ⛔ Deferred until R2-05.9 is approved |
+| R2-05.9 Unicorn | ✅ Done — Breaker ∩ same-polarity FVG, 56 tests |
+| R2-06 PremiumDiscount | ⬜ Not started — R2-05.x is complete, so this is next |
 | R2-07 ICT feature integration | ⬜ |
 
 Stories in [user-stories/](../../user-stories/README.md), tasks in [tasks/](../../tasks/README.md).
@@ -223,18 +223,42 @@ Full results: [DATA_PROOF.md](../financial-ai/DATA_PROOF.md). A re-run against t
   the pattern under test forms its own valid Order Block and quietly doubles the
   expected count.
 
+## Gotchas found in R2-05.9 (Unicorn)
+
+- **The Unicorn's cardinality rule makes it OUTNUMBER its own inputs.** 849 Breakers on
+  EURUSD 1m produce 3081 Unicorns, because several gaps routinely overlap one Breaker
+  and none of them is collapsed. That is the specified behaviour, not a bug — but
+  anyone reading counts should expect it, and `max_bars_from_breaker` (default 50) is
+  the knob that governs it. The source calls the overlap "rare"; on 1m bars it is not.
+- **`event_timestamp` is `max(component event timestamps)`, NOT "whichever confirmed
+  second".** A component can form later and still confirm first, so the two readings
+  disagree. The relationship is not on the chart until both halves of it are drawn.
+- **A Unicorn's death is its Breaker's death, read out of `BreakerAnalysis.fills`.**
+  `unicorn.py` evaluates no price condition to decide invalidation. Recomputing it
+  would be a second implementation of a rule that is already written down once.
+- **A Unicorn can be born INVALIDATED** when its Breaker died before the second
+  component confirmed. It is still emitted — suppressing it would hide a real event
+  behind a lifecycle state — and consumers filter on status.
+- **INVALIDATED outranks MITIGATED in reporting**, following `OrderBlockAnalysis`.
+  Both are terminal; the second names the cause.
+- **The `require_structure_break` default makes the Unicorn's inputs sparse.** With the
+  gate ON (the default) EURUSD 1H yields 3 Unicorns and XAUUSD 1H yields 0. The
+  real-data suite runs the ungated Breaker so the geometry is exercised everywhere.
+
 ## R2-05.x — what the next person needs to know
 
-**Read [`docs/ict/R2-05x-CONCEPT-MAP.md`](../ict/R2-05x-CONCEPT-MAP.md) first.** Eight
-composite concepts are specified and none is implemented. The shape of the work changed:
-these are mostly *relationships between events that already exist*, so the risk moved
-from "did we read the candles right" to "did the composite inherit its sources'
-observability". The governing rule:
+**Read [`docs/ict/R2-05x-CONCEPT-MAP.md`](../ict/R2-05x-CONCEPT-MAP.md) first.** All
+eight composite concepts are now specified AND implemented (CHoCH deliberately as "no
+change"). The shape of the work changed at R2-05.2: these are mostly *relationships
+between events that already exist*, so the risk moved from "did we read the candles
+right" to "did the composite inherit its sources' observability". The governing rule:
 
 > a composite's `confirmation_timestamp` is at least the max of its sources'
 > confirmations, plus whatever its own trigger requires.
 
-- **Consume upstream detectors, never re-implement them.** Import guards enforce it.
+- **Consume upstream detectors, never re-implement them.** Import guards enforce it,
+  and `unicorn.py` is the proof they scale: it reaches three levels down (FVG, Breaker,
+  and transitively the Order Block) with no duplicated geometry at all.
 - **Provenance is an id, not a copied geometry** — so "does every source resolve, and is
   it observable no later than the composite?" is mechanically testable.
 - **Two shared helpers get built once, in R2-05.2**, and every later story reuses them:
@@ -250,12 +274,12 @@ observability". The governing rule:
 
 ## Open items for Phase 2
 
-1. **Unicorn (R2-05.9) is not built.** Its inputs — Breaker and FVG — both exist and
-   are confirmed, so it is a geometry-only story when it is authorised.
-2. **R2-06 PremiumDiscount remains deferred.** All the risk is in which dealing range is chosen, so that must be configuration with a documented default.
-2. **Swings are unranked.** Many minor pivots at `left=right=2`. `strength` (prominence) is available for filtering, but R2-03/R2-07 will likely need a significance ranking.
-3. **No holiday calendar yet.** A bank holiday looks like any other empty window: correctly no occurrence, but the detector cannot say *why*. R2-04 ("previous day") likely forces the issue.
-4. **Multi-year data availability is UNCONFIRMED.** Only 4 days are proven. Whether Dukascopy has complete 2021-2025 coverage for both symbols has not been checked, so the Master Plan §20 split is unvalidated. Run a metered background backfill early.
-5. **`StorageConfig.raw_root` is defined but unused.** The `.bi5` cache serves as the raw immutable archive. Decide whether decoded ticks are also persisted as Parquet.
-6. **The outbox lane is not wired.** `app/db.py` is not ported — everything runs file-only. Port it when a long-running lane actually needs it.
-7. **No cross-vendor data comparison.** Zero ticks were rejected, but internal consistency is a weaker claim than agreement with a second source.
+1. **R2-06 PremiumDiscount is the next story.** All the risk is in which dealing range is chosen, so that must be configuration with a documented default. R2-05.x no longer blocks it.
+2. **`UnicornDetector.analyse` is now the engine's slowest call** — ~25 s for 2933 1m bars, because `track_zone_fill` runs a Python loop per zone and there are thousands of Unicorns. `detect` alone is ~2.9 s. No correctness impact; it also makes the real-data suite noticeably slower (556 tests, ~7 min). Vectorising the fill scan is the fix, and it belongs to a performance story with a benchmark.
+3. **The IFVG detector is the engine's second hotspot** — 3.3 s for 2933 1m bars, via `window.iterrows()` per zone. No correctness impact; reported by the R2-05.2 audit and deliberately not optimised. The fix is a vectorised numpy comparison when it matters.
+4. **Swings are unranked.** Many minor pivots at `left=right=2`. `strength` (prominence) is available for filtering, but R2-03/R2-07 will likely need a significance ranking.
+5. **No holiday calendar yet.** A bank holiday looks like any other empty window: correctly no occurrence, but the detector cannot say *why*. R2-04 ("previous day") likely forces the issue.
+6. **Multi-year data availability is UNCONFIRMED.** Only 4 days are proven. Whether Dukascopy has complete 2021-2025 coverage for both symbols has not been checked, so the Master Plan §20 split is unvalidated. Run a metered background backfill early.
+7. **`StorageConfig.raw_root` is defined but unused.** The `.bi5` cache serves as the raw immutable archive. Decide whether decoded ticks are also persisted as Parquet.
+8. **The outbox lane is not wired.** `app/db.py` is not ported — everything runs file-only. Port it when a long-running lane actually needs it.
+9. **No cross-vendor data comparison.** Zero ticks were rejected, but internal consistency is a weaker claim than agreement with a second source.

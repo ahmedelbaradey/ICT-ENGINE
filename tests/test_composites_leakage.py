@@ -1,6 +1,6 @@
-"""R2-05.2 leakage, replay and provenance — applied uniformly to all six detectors.
+"""R2-05.2/R2-05.9 leakage, replay and provenance — applied to every composite.
 
-Written once and parametrised rather than copied six times: the whole point of the
+Written once and parametrised rather than copied per detector: the whole point of the
 shared composite machinery is that these properties hold *by construction*, so they
 should be expressible as one set of tests over a table of detectors.
 
@@ -31,6 +31,7 @@ from ict_kronos.ict import (
     IfvgDetector,
     OrderBlockDetector,
     RdrbDetector,
+    UnicornDetector,
     assert_provenance_resolves,
     assert_sources_observable_first,
     composite_confirmation,
@@ -41,7 +42,7 @@ START = datetime(2024, 3, 8, 9, 0, tzinfo=UTC)
 M5 = Timeframe.M5
 SYM = Symbol.EURUSD
 
-#: The six detector modules. Neither of them may own confirmation arithmetic.
+#: The composite detector modules. None of them may own confirmation arithmetic.
 DETECTOR_MODULES = (
     "ict_kronos/ict/ifvg.py",
     "ict_kronos/ict/order_blocks.py",
@@ -49,6 +50,7 @@ DETECTOR_MODULES = (
     "ict_kronos/ict/bpr.py",
     "ict_kronos/ict/rdrb.py",
     "ict_kronos/ict/cisd.py",
+    "ict_kronos/ict/unicorn.py",
 )
 
 #: Every module added by this story, including the one that DOES own the primitives.
@@ -60,6 +62,7 @@ NEW_MODULES = (
     "ict_kronos/ict/bpr.py",
     "ict_kronos/ict/rdrb.py",
     "ict_kronos/ict/cisd.py",
+    "ict_kronos/ict/unicorn.py",
 )
 
 
@@ -113,6 +116,7 @@ DETECTORS = [
     ("bpr", BprDetector(), None),
     ("rdrb", RdrbDetector(), None),
     ("cisd", CisdDetector(), None),
+    ("unicorn", UnicornDetector(breaker_config=BreakerConfig(require_structure_break=False)), None),
 ]
 
 
@@ -284,6 +288,29 @@ class TestL6Provenance:
         for cisd in CisdDetector().detect(frame, SYM, M5):
             assert cisd.leg_end_timestamp < cisd.event_timestamp
 
+    def test_unicorn_sources_resolve_and_confirm_first(self, frame):
+        detector = UnicornDetector(breaker_config=BreakerConfig(require_structure_break=False))
+        unicorns = detector.detect(frame, SYM, M5)
+        breakers = {b.breaker_id: b for b in detector.breaker_detector.detect(frame, SYM, M5)}
+        gaps = {z.zone_id: z for z in FvgDetector().detect(frame, SYM, M5)}
+
+        assert unicorns
+        assert_provenance_resolves(unicorns, breakers, id_fields=["source_breaker_id"])
+        assert_provenance_resolves(unicorns, gaps, id_fields=["source_fvg_id"])
+        for unicorn in unicorns:
+            sources = [breakers[unicorn.source_breaker_id], gaps[unicorn.source_fvg_id]]
+            assert_sources_observable_first(unicorn, sources, label="unicorn")
+            # No trigger of its own, so the maximum is EXACTLY the confirmation.
+            assert unicorn.confirmation_timestamp == max(s.confirmation_timestamp for s in sources)
+
+    def test_unicorn_order_block_provenance_survives_the_transitive_hop(self, frame):
+        detector = UnicornDetector(breaker_config=BreakerConfig(require_structure_break=False))
+        blocks = {b.order_block_id: b for b in OrderBlockDetector().detect(frame, SYM, M5)}
+        unicorns = detector.detect(frame, SYM, M5)
+
+        assert unicorns
+        assert_provenance_resolves(unicorns, blocks, id_fields=["source_order_block_id"])
+
     def test_a_dangling_provenance_id_is_caught(self, frame):
         zones = IfvgDetector().detect(frame, SYM, M5)
         with pytest.raises(ContractViolation, match="resolves to no source event"):
@@ -371,6 +398,8 @@ class TestSourceLevelGuards:
             "ict_kronos/ict/bpr.py": ("def detect_gaps", "reference_zones"),
             "ict_kronos/ict/breakers.py": ("def _runs", "reference_pivots"),
             "ict_kronos/ict/cisd.py": ("from .structure import", "from .swings import"),
+            # The deepest composite: it must not grow its own copy of ANY layer below.
+            "ict_kronos/ict/unicorn.py": ("def _runs", "def _legs", "reference_zones", "def _failure"),
         }
         for module, names in forbidden.items():
             source = Path(module).read_text(encoding="utf-8")

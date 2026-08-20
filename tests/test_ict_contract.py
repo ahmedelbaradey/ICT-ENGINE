@@ -168,6 +168,8 @@ class TestEventTypeCoverage:
             "rdrb_bearish",
             "cisd_bullish",
             "cisd_bearish",
+            "unicorn_bullish",
+            "unicorn_bearish",
             "dealing_range",
         }
         assert {e.value for e in EventType} == expected

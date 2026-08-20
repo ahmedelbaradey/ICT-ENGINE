@@ -27,7 +27,7 @@ adopted silently.
 | RdrbDetector | [R2-05.6](../../user-stories/Phase-2-ICT-Engine/R2-05.6-rdrb.md) | [rdrb.md](rdrb.md) | ✅ Done |
 | CisdDetector | [R2-05.7](../../user-stories/Phase-2-ICT-Engine/R2-05.7-cisd.md) | [cisd.md](cisd.md) | ✅ Done |
 | CHoCH revision | [R2-05.8](../../user-stories/Phase-2-ICT-Engine/R2-05.8-choch-revision.md) | [structure.md](structure.md) | ✅ Reviewed — no change |
-| UnicornDetector | [R2-05.9](../../user-stories/Phase-2-ICT-Engine/R2-05.9-unicorn-model.md) | — | ⛔ Deferred |
+| UnicornDetector | [R2-05.9](../../user-stories/Phase-2-ICT-Engine/R2-05.9-unicorn-model.md) | [unicorn.md](unicorn.md) | ✅ Done |
 | PremiumDiscountCalculator | R2-06 | — | ⛔ Deferred |
 | ICTFeatureVector | R2-07 | — | ⛔ Deferred |
 
