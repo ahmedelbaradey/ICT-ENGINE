@@ -20,14 +20,14 @@ adopted silently.
 | LiquidityDetector | [R2-04](../../user-stories/Phase-2-ICT-Engine/R2-04-liquidity.md) | [liquidity.md](liquidity.md) | ✅ Done |
 | FVGDetector | [R2-05](../../user-stories/Phase-2-ICT-Engine/R2-05-fair-value-gap.md) | [fvg.md](fvg.md) | ✅ Done |
 | TrueDailyOpenDetector | [R2-05.1](../../user-stories/Phase-2-ICT-Engine/R2-05.1-true-daily-open.md) | [true_daily_open.md](true_daily_open.md) | ✅ Done |
-| IfvgDetector | [R2-05.2](../../user-stories/Phase-2-ICT-Engine/R2-05.2-inversion-fair-value-gap.md) | — | 📋 Spec |
-| OrderBlockDetector | [R2-05.3](../../user-stories/Phase-2-ICT-Engine/R2-05.3-order-block.md) | — | 📋 Spec |
-| BreakerDetector | [R2-05.4](../../user-stories/Phase-2-ICT-Engine/R2-05.4-breaker-block.md) | — | 📋 Spec |
-| BprDetector | [R2-05.5](../../user-stories/Phase-2-ICT-Engine/R2-05.5-balanced-price-range.md) | — | 📋 Spec |
-| RdrbDetector | [R2-05.6](../../user-stories/Phase-2-ICT-Engine/R2-05.6-rdrb.md) | — | 📋 Spec ⚠ |
-| CisdDetector | [R2-05.7](../../user-stories/Phase-2-ICT-Engine/R2-05.7-cisd.md) | — | 📋 Spec |
-| CHoCH revision | [R2-05.8](../../user-stories/Phase-2-ICT-Engine/R2-05.8-choch-revision.md) | [structure.md](structure.md) | 📋 Spec |
-| UnicornDetector | [R2-05.9](../../user-stories/Phase-2-ICT-Engine/R2-05.9-unicorn-model.md) | — | 📋 Spec |
+| IfvgDetector | [R2-05.2](../../user-stories/Phase-2-ICT-Engine/R2-05.2-inversion-fair-value-gap.md) | [ifvg.md](ifvg.md) | ✅ Done |
+| OrderBlockDetector | [R2-05.3](../../user-stories/Phase-2-ICT-Engine/R2-05.3-order-block.md) | [order_block.md](order_block.md) | ✅ Done |
+| BreakerDetector | [R2-05.4](../../user-stories/Phase-2-ICT-Engine/R2-05.4-breaker-block.md) | [breaker_block.md](breaker_block.md) | ✅ Done |
+| BprDetector | [R2-05.5](../../user-stories/Phase-2-ICT-Engine/R2-05.5-balanced-price-range.md) | [bpr.md](bpr.md) | ✅ Done |
+| RdrbDetector | [R2-05.6](../../user-stories/Phase-2-ICT-Engine/R2-05.6-rdrb.md) | [rdrb.md](rdrb.md) | ✅ Done |
+| CisdDetector | [R2-05.7](../../user-stories/Phase-2-ICT-Engine/R2-05.7-cisd.md) | [cisd.md](cisd.md) | ✅ Done |
+| CHoCH revision | [R2-05.8](../../user-stories/Phase-2-ICT-Engine/R2-05.8-choch-revision.md) | [structure.md](structure.md) | ✅ Reviewed — no change |
+| UnicornDetector | [R2-05.9](../../user-stories/Phase-2-ICT-Engine/R2-05.9-unicorn-model.md) | — | ⛔ Deferred |
 | PremiumDiscountCalculator | R2-06 | — | ⛔ Deferred |
 | ICTFeatureVector | R2-07 | — | ⛔ Deferred |
 

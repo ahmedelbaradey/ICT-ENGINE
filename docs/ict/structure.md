@@ -143,6 +143,39 @@ CHoCH otherwise
 
 This is the one reading in circulation that is both deterministic and defensible — many sources require displacement for a "true" MSS. It is **off by default** because the base state-transition definition is the more common usage and the simpler claim.
 
+### CHoCH after R2-05.2 — reviewed, and deliberately unchanged
+
+The R2-05.2 brief required CHoCH to be re-evaluated rather than preserved by inertia.
+It was, and the outcome is **no behaviour change**. The reasoning, so it is not
+re-litigated:
+
+**The ICT material does not define CHoCH as a distinct algorithm.** What it does define
+is the CISD/MSS relationship — *"CISD is a candle-close signal that prints early; MSS
+is a structural break that confirms later"*, and *"MSS is based on wicks while CISD on
+closing price"*.
+
+That matters because the role usually invoked to justify splitting CHoCH from MSS —
+"the earlier, weaker reversal hint" — is, in the source material, **CISD's role**. With
+`CisdDetector` now implemented (`docs/ict/cisd.md`), that role is filled by a concept
+that has a real, testable definition. There is no remaining pressure to manufacture a
+distinct CHoCH, and manufacturing one because the terminology is common in
+discretionary material would be exactly the kind of invented semantics this repo
+refuses.
+
+The four concepts, side by side:
+
+| Concept | Reads | Confirms on | Owner |
+|---|---|---|---|
+| **BOS** | swing levels | the breaking bar's close | R2-03 |
+| **MSS** | swing levels, against the prevailing state | the breaking bar's close | R2-03 |
+| **CHoCH** | — *(alias of MSS by default)* | — | R2-03 |
+| **CISD** | candle **opens and closes** only | the crossing bar's close | R2-05.2 |
+
+So: `EventType.CHOCH` remains in the contract and remains emittable under
+`DISTINCT_BY_DISPLACEMENT`, the architecture can represent it independently, and the
+default stays `SYNONYM`. **No R2-03 behaviour changed in R2-05.2** — the existing
+BOS/MSS tests pass unmodified.
+
 ## 6. State machine
 
 ```

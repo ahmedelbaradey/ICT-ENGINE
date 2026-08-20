@@ -2,7 +2,7 @@
 
 **Protocol (ported from Learnexia):** read this before starting work; update it before opening your PR, in the same PR. Prune what has gone stale. If it isn't here, assume the next person won't know it.
 
-Last updated: **2026-08-20** — R2-05.x specification checkpoint (no code).
+Last updated: **2026-08-20** — end of R2-05.2 (six composite detectors).
 
 ---
 
@@ -14,7 +14,7 @@ Last updated: **2026-08-20** — R2-05.x specification checkpoint (no code).
 | 0.5 — Foundation | ✅ Complete |
 | 1 — Market data layer | ✅ Complete |
 | 1.5 — Real-data proof | ✅ APPROVED |
-| **2 — ICT engine** | 🔵 **In progress — R2-01..R2-05.1 done; R2-05.2..R2-05.9 specified; R2-06 DEFERRED** |
+| **2 — ICT engine** | 🔵 **In progress — R2-01..R2-05.2 done; Unicorn + R2-06 DEFERRED** |
 | 3–10 | ⬜ Not started (5 blocked on GPU) |
 
 ### Phase 2 stories
@@ -27,14 +27,14 @@ Last updated: **2026-08-20** — R2-05.x specification checkpoint (no code).
 | R2-04 LiquidityDetector | ✅ Done — 210 tests |
 | R2-05 FVGDetector | ✅ Done — 225 tests |
 | R2-05.1 TrueDailyOpen | ✅ Done — 250 tests |
-| R2-05.2 IFVG | 📋 Spec written — **next to implement** |
-| R2-05.3 Order Block | 📋 Spec written |
-| R2-05.4 Breaker Block | 📋 Spec written |
-| R2-05.5 BPR | 📋 Spec written |
-| R2-05.6 RDRB | 📋 Spec written — ⚠ decision required |
-| R2-05.7 CISD | 📋 Spec written |
-| R2-05.8 CHoCH revision | 📋 Spec written |
-| R2-05.9 Unicorn | 📋 Spec written |
+| R2-05.2 IFVG | ✅ Done |
+| R2-05.3 Order Block | ✅ Done |
+| R2-05.4 Breaker Block | ✅ Done |
+| R2-05.5 BPR | ✅ Done |
+| R2-05.6 RDRB | ✅ Done — FOUR-candle definition |
+| R2-05.7 CISD | ✅ Done |
+| R2-05.8 CHoCH revision | ✅ Reviewed — no behaviour change |
+| R2-05.9 Unicorn | ⛔ Deferred — inputs ready |
 | R2-06 PremiumDiscount | ⛔ Deferred until R2-05.9 is approved |
 | R2-07 ICT feature integration | ⬜ |
 
@@ -199,6 +199,30 @@ Full results: [DATA_PROOF.md](../financial-ai/DATA_PROOF.md). A re-run against t
 - **`latest_at` means "most recent", not "today's".** On a date with no boundary bar it returns the previous date's level, correctly labelled with its own `trading_date`. Detection carries nothing forward; the query is a convenience over what was found, and the caller must check the date.
 - **The Phase 1.5 window happens to contain both DST cases and a weekend**, so the spring transition and closure behaviour are validated on real bars. The autumn transition has no real-data coverage and is synthetic only.
 
+## Gotchas found in R2-05.2
+
+- **Composite identity must include provenance.** Two real defects, both caught by a
+  uniqueness test on real data, not by reasoning: several FVGs can invert on the SAME
+  bar (121 zones → 105 ids), and several Order Blocks can fail on the same bar
+  (215 breakers → 110 ids). A timestamp alone is not an identity for a composite.
+- **CISD's state machine must run in TRIGGER order, not leg order.** A short later leg
+  can trigger before a long earlier one resolves; walking the machine in leg order
+  makes batch disagree with replay.
+- **`confirmed_within` / `later_confirmed` are NOT observability checks** but look
+  identical in source. They live in `composites.py` so the source-level guard over the
+  six detector modules can stay strict.
+- **Mitigation is not inversion, and mitigation is not invalidation.** Fills come from
+  bar *extremes*; inversion and OB failure need a *close*. Keeping them separate is
+  what makes IFVG and Breaker meaningful rather than restatements of a fill.
+- **An Order Block confirms LATER than its own candle** (2+ bars on real 5m data). It
+  is the only detector in the engine so far whose event and confirmation are separated
+  by an unbounded number of bars.
+- **A doji belongs to no run.** Stated explicitly in both `order_blocks.py` and
+  `cisd.py`, because leaving it implicit turns "contiguous group" into a judgement call.
+- **Test fixtures need dojis as leading context.** An ordinary up/down candle before
+  the pattern under test forms its own valid Order Block and quietly doubles the
+  expected count.
+
 ## R2-05.x — what the next person needs to know
 
 **Read [`docs/ict/R2-05x-CONCEPT-MAP.md`](../ict/R2-05x-CONCEPT-MAP.md) first.** Eight
@@ -215,10 +239,10 @@ observability". The governing rule:
   it observable no later than the composite?" is mechanically testable.
 - **Two shared helpers get built once, in R2-05.2**, and every later story reuses them:
   `assert_provenance_resolves`, `assert_sources_observable_first`.
-- **Five decisions are open** (concept map §8). The load-bearing one is **RDRB**: the
-  primary source describes a two-candle pattern with the zone drawn from the
-  *surrounding* candles, while the wider community describes a three-candle one. They
-  are different patterns, not different emphases.
+- **Two definitions were overridden by the project lead** and are authoritative:
+  **Order Block** = last opposing candle/group **closed through** (an FVG is never
+  required), and **RDRB** = **four candles** with C2's wick protected and confirmation
+  at C4's close. The concept map's original proposals for both are superseded.
 - **CHoCH finding:** the ICT material does not define CHoCH as a distinct algorithm; the
   "early reversal hint" role it gets stretched to fill is, in the source, **CISD's**
   role. R2-05.8 is therefore scheduled after R2-05.7 and may legitimately end with no
@@ -226,8 +250,9 @@ observability". The governing rule:
 
 ## Open items for Phase 2
 
-1. **R2-05.2 IFVG is next**, after the specification checkpoint is approved.
-2. **R2-06 PremiumDiscount is deferred** until R2-05.9 is independently approved. All the risk is in which dealing range is chosen, so that must be configuration with a documented default.
+1. **Unicorn (R2-05.9) is not built.** Its inputs — Breaker and FVG — both exist and
+   are confirmed, so it is a geometry-only story when it is authorised.
+2. **R2-06 PremiumDiscount remains deferred.** All the risk is in which dealing range is chosen, so that must be configuration with a documented default.
 2. **Swings are unranked.** Many minor pivots at `left=right=2`. `strength` (prominence) is available for filtering, but R2-03/R2-07 will likely need a significance ranking.
 3. **No holiday calendar yet.** A bank holiday looks like any other empty window: correctly no occurrence, but the detector cannot say *why*. R2-04 ("previous day") likely forces the issue.
 4. **Multi-year data availability is UNCONFIRMED.** Only 4 days are proven. Whether Dukascopy has complete 2021-2025 coverage for both symbols has not been checked, so the Master Plan §20 split is unvalidated. Run a metered background backfill early.

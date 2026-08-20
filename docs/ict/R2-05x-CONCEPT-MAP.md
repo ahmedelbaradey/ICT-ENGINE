@@ -6,7 +6,20 @@ criteria and — most importantly — the **ambiguity register**: every place wh
 material is loose or self-contradictory, what we propose to implement, and what we are
 deliberately not implementing.
 
-> **Nothing here is implemented yet.** This document is the thing being approved.
+> **Status update.** The specification below was approved with two **authoritative
+> overrides** from the project lead, and R2-05.2 has since implemented six detectors
+> against the corrected definitions. Where this document's original proposal and the
+> override disagree, **the override is the definition of record** and the per-concept
+> doc reflects it:
+>
+> | | Original proposal (superseded) | **Authoritative definition** |
+> |---|---|---|
+> | **Order Block** | engulf + displacement + FVG (§5.3 "Q3") | the last opposing candle **or contiguous group** whose range is subsequently **closed through**; an FVG is **never** required unless explicitly configured |
+> | **RDRB** | two-candle, zone from surrounding wicks (§5.6) | **four candles** C1→C2→C3→C4; C2 holds the protected wick; bullish `C4.low > C2.low`, bearish `C4.high < C2.high`; confirmation at **C4's close** |
+>
+> Implemented: IFVG, Order Block, Breaker, BPR, RDRB, CISD. CHoCH was reviewed and
+> deliberately left unchanged (see `docs/ict/structure.md`). Unicorn is **not** built —
+> its inputs exist, the composite does not.
 
 ---
 
@@ -386,6 +399,26 @@ normalisation · any signal, entry, exit, stop, target, sizing or backtest rule.
 The output of R2-05.x is deterministic event information and nothing else.
 
 ---
+
+## 6a. What R2-05.2 actually built
+
+| Concept | Module | Doc | Tests |
+|---|---|---|---|
+| IFVG | `ict/ifvg.py` | [ifvg.md](ifvg.md) | 27 |
+| Order Block | `ict/order_blocks.py` | [order_block.md](order_block.md) | 39 |
+| Breaker | `ict/breakers.py` | [breaker_block.md](breaker_block.md) | 21 |
+| BPR | `ict/bpr.py` | [bpr.md](bpr.md) | 23 |
+| RDRB | `ict/rdrb.py` | [rdrb.md](rdrb.md) | 38 |
+| CISD | `ict/cisd.py` | [cisd.md](cisd.md) | 28 |
+| *(shared machinery)* | `ict/composites.py` | this document §3 | — |
+| *(cross-cutting)* | — | — | 94 leakage + 464 real-data |
+
+**CHoCH** was reviewed and left unchanged; the reasoning is in
+[structure.md](structure.md) §5. **Unicorn** is not built — its inputs exist.
+
+**Two real defects were found by tests rather than by reasoning**, both composite
+identity collisions on real data: several FVGs can invert on the same bar, and several
+Order Blocks can fail on the same bar. Both ids now include their provenance.
 
 ## 7. Implementation plan
 

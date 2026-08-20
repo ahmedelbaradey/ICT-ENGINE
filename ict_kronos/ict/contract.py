@@ -93,6 +93,21 @@ class EventType(StrEnum):
     #: that happen to both be daily. See ``docs/ict/true_daily_open.md`` §1.
     TRUE_DAILY_OPEN = "true_daily_open"
 
+    # --- R2-05.2 composite PD arrays ---------------------------------------
+    #: Every member below is a COMPOSITE: it references source events by id rather
+    #: than re-deriving them. See ``docs/ict/R2-05x-CONCEPT-MAP.md``.
+    IFVG_BULLISH = "ifvg_bullish"
+    IFVG_BEARISH = "ifvg_bearish"
+    ORDER_BLOCK_BULLISH = "order_block_bullish"
+    ORDER_BLOCK_BEARISH = "order_block_bearish"
+    BREAKER_BULLISH = "breaker_bullish"
+    BREAKER_BEARISH = "breaker_bearish"
+    BALANCED_PRICE_RANGE = "balanced_price_range"
+    RDRB_BULLISH = "rdrb_bullish"
+    RDRB_BEARISH = "rdrb_bearish"
+    CISD_BULLISH = "cisd_bullish"
+    CISD_BEARISH = "cisd_bearish"
+
     # --- R2-06 premium / discount ------------------------------------------
     DEALING_RANGE = "dealing_range"
 

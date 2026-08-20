@@ -4,6 +4,36 @@ Every detector here is a pure function of observed bars. No LLM ever decides
 whether a pattern exists (CLAUDE.md rules 2 and 3).
 """
 
+from .bpr import (
+    BalancedPriceRange,
+    BprAnalysis,
+    BprConfig,
+    BprDetector,
+    BprPolarity,
+)
+from .breakers import (
+    BreakerAnalysis,
+    BreakerBlock,
+    BreakerBreakMode,
+    BreakerConfig,
+    BreakerDetector,
+)
+from .cisd import (
+    Cisd,
+    CisdAnalysis,
+    CisdAnchor,
+    CisdConfig,
+    CisdDetector,
+    DeliveryState,
+)
+from .composites import (
+    ZoneFillUpdate,
+    ZoneStatus,
+    assert_provenance_resolves,
+    assert_sources_observable_first,
+    composite_confirmation,
+    structure_break_id,
+)
 from .contract import (
     ContractViolation,
     Direction,
@@ -25,6 +55,13 @@ from .fvg import (
     GapMeasure,
     reference_zones,
 )
+from .ifvg import (
+    IfvgAnalysis,
+    IfvgConfig,
+    IfvgDetector,
+    IfvgZone,
+    InversionTrigger,
+)
 from .liquidity import (
     LiquidityAnalysis,
     LiquidityConfig,
@@ -34,6 +71,22 @@ from .liquidity import (
     LiquidityStatus,
     LiquiditySweep,
     LiquidityType,
+)
+from .order_blocks import (
+    ObGrouping,
+    ObStatus,
+    ObZoneGeometry,
+    OrderBlock,
+    OrderBlockAnalysis,
+    OrderBlockConfig,
+    OrderBlockDetector,
+)
+from .rdrb import (
+    RDRB_CANDLES,
+    RdrbAnalysis,
+    RdrbConfig,
+    RdrbDetector,
+    RdrbZone,
 )
 from .sessions import (
     DEFAULT_SESSIONS,
@@ -67,11 +120,43 @@ from .true_daily_open import (
 )
 
 __all__ = [
-    "DEFAULT_SESSIONS",
+    "BalancedPriceRange",
     "BoundaryAnomaly",
+    "BprAnalysis",
+    "BprConfig",
+    "BprDetector",
+    "BprPolarity",
     "BreakMode",
+    "BreakerAnalysis",
+    "BreakerBlock",
+    "BreakerBreakMode",
+    "BreakerConfig",
+    "BreakerDetector",
     "ChochPolicy",
+    "Cisd",
+    "CisdAnalysis",
+    "CisdAnchor",
+    "CisdConfig",
+    "CisdDetector",
     "ContractViolation",
+    "DEFAULT_SESSIONS",
+    "DeliveryState",
+    "Direction",
+    "EventStatus",
+    "EventType",
+    "FvgAnalysis",
+    "FvgConfig",
+    "FvgDetector",
+    "FvgFillUpdate",
+    "FvgStatus",
+    "FvgZone",
+    "GapMeasure",
+    "IctEvent",
+    "IfvgAnalysis",
+    "IfvgConfig",
+    "IfvgDetector",
+    "IfvgZone",
+    "InversionTrigger",
     "LiquidityAnalysis",
     "LiquidityConfig",
     "LiquidityDetector",
@@ -80,17 +165,18 @@ __all__ = [
     "LiquidityStatus",
     "LiquiditySweep",
     "LiquidityType",
-    "Direction",
-    "FvgAnalysis",
-    "FvgConfig",
-    "FvgDetector",
-    "FvgFillUpdate",
-    "FvgStatus",
-    "FvgZone",
-    "GapMeasure",
-    "EventStatus",
-    "EventType",
-    "IctEvent",
+    "ObGrouping",
+    "ObStatus",
+    "ObZoneGeometry",
+    "OrderBlock",
+    "OrderBlockAnalysis",
+    "OrderBlockConfig",
+    "OrderBlockDetector",
+    "RDRB_CANDLES",
+    "RdrbAnalysis",
+    "RdrbConfig",
+    "RdrbDetector",
+    "RdrbZone",
     "RunningSessionState",
     "SessionDefinition",
     "SessionDetector",
@@ -110,8 +196,13 @@ __all__ = [
     "TrueDailyOpen",
     "TrueDailyOpenConfig",
     "TrueDailyOpenDetector",
+    "ZoneFillUpdate",
+    "ZoneStatus",
     "assert_no_leakage",
     "assert_observable",
+    "assert_provenance_resolves",
+    "assert_sources_observable_first",
+    "composite_confirmation",
     "events_to_frame",
     "filter_observable",
     "load_definitions",
@@ -120,4 +211,5 @@ __all__ = [
     "reference_zones",
     "resolve_window",
     "resolve_windows",
+    "structure_break_id",
 ]

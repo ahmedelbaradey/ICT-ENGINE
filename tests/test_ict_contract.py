@@ -157,6 +157,17 @@ class TestEventTypeCoverage:
             "fvg_bullish",
             "fvg_bearish",
             "true_daily_open",
+            "ifvg_bullish",
+            "ifvg_bearish",
+            "order_block_bullish",
+            "order_block_bearish",
+            "breaker_bullish",
+            "breaker_bearish",
+            "balanced_price_range",
+            "rdrb_bullish",
+            "rdrb_bearish",
+            "cisd_bullish",
+            "cisd_bearish",
             "dealing_range",
         }
         assert {e.value for e in EventType} == expected

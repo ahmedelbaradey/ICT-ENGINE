@@ -311,6 +311,56 @@ class FvgDetectionConfig:
 
 
 @dataclass(frozen=True)
+class CompositeIctConfig:
+    """R2-05.2 composite PD arrays. See ``docs/ict/R2-05x-CONCEPT-MAP.md``.
+
+    Only genuinely meaningful choices are exposed. Every default encodes the
+    project's definition of record, not a tuning preference:
+
+    * ``ob_grouping``/``ob_geometry`` — the Order Block is the opposing candle *or
+      group*, bounded by its full range, closed through by the move.
+    * ``ob_require_fvg`` is **False**: OB formation and FVG formation are different
+      events, and an Order Block must never silently require a gap.
+    * ``ifvg_trigger`` — inversion needs a CLOSE beyond the far edge. A wick that
+      merely fills the gap mitigates it without inverting it.
+    * ``breaker_require_structure_break`` is **True**: not every broken Order Block
+      is a Breaker.
+    * ``rdrb_wick_tolerance_points`` is 0 — C4 reaching C2's protected wick is a
+      violation, so equality is invalid.
+    """
+
+    ifvg_trigger: str = "close_through_far_edge"
+    ob_grouping: str = "multi_candle_group"
+    ob_geometry: str = "full_range"
+    ob_require_fvg: bool = False
+    ob_max_bars_to_confirm: int = 50
+    breaker_break_mode: str = "close"
+    breaker_require_structure_break: bool = True
+    bpr_polarity: str = "later_fvg"
+    bpr_max_bars_between: int = 100
+    rdrb_wick_tolerance_points: float = 0.0
+    cisd_anchor: str = "series_open"
+    cisd_min_leg_length: int = 1
+
+    @classmethod
+    def from_env(cls) -> CompositeIctConfig:
+        return cls(
+            ifvg_trigger=os.environ.get("ICT_IFVG_TRIGGER", "close_through_far_edge").strip().lower(),
+            ob_grouping=os.environ.get("ICT_OB_GROUPING", "multi_candle_group").strip().lower(),
+            ob_geometry=os.environ.get("ICT_OB_GEOMETRY", "full_range").strip().lower(),
+            ob_require_fvg=_get_bool("ICT_OB_REQUIRE_FVG", False),
+            ob_max_bars_to_confirm=_get_int("ICT_OB_MAX_BARS_TO_CONFIRM", 50),
+            breaker_break_mode=os.environ.get("ICT_BREAKER_BREAK_MODE", "close").strip().lower(),
+            breaker_require_structure_break=_get_bool("ICT_BREAKER_REQUIRE_STRUCTURE_BREAK", True),
+            bpr_polarity=os.environ.get("ICT_BPR_POLARITY", "later_fvg").strip().lower(),
+            bpr_max_bars_between=_get_int("ICT_BPR_MAX_BARS_BETWEEN", 100),
+            rdrb_wick_tolerance_points=_get_float("ICT_RDRB_WICK_TOLERANCE_POINTS", 0.0),
+            cisd_anchor=os.environ.get("ICT_CISD_ANCHOR", "series_open").strip().lower(),
+            cisd_min_leg_length=_get_int("ICT_CISD_MIN_LEG_LENGTH", 1),
+        )
+
+
+@dataclass(frozen=True)
 class TrueDailyOpenConfig:
     """True Daily Open boundary (R2-05.1). See ``docs/ict/true_daily_open.md``.
 
@@ -417,6 +467,7 @@ class Settings:
     liquidity: LiquidityDetectionConfig = field(default_factory=LiquidityDetectionConfig.from_env)
     fvg: FvgDetectionConfig = field(default_factory=FvgDetectionConfig.from_env)
     true_daily_open: TrueDailyOpenConfig = field(default_factory=TrueDailyOpenConfig.from_env)
+    composites: CompositeIctConfig = field(default_factory=CompositeIctConfig.from_env)
     kronos: KronosConfig = field(default_factory=KronosConfig.from_env)
     llm: LlmConfig = field(default_factory=LlmConfig.from_env)
     ingest_poller: PollerConfig = field(default_factory=lambda: PollerConfig.for_lane("ingest"))
@@ -434,6 +485,7 @@ class Settings:
             liquidity=LiquidityDetectionConfig.from_env(),
             fvg=FvgDetectionConfig.from_env(),
             true_daily_open=TrueDailyOpenConfig.from_env(),
+            composites=CompositeIctConfig.from_env(),
             kronos=KronosConfig.from_env(),
             llm=LlmConfig.from_env(),
             ingest_poller=PollerConfig.for_lane("ingest"),
