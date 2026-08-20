@@ -2,7 +2,11 @@
 
 > **Phase 2 composite work:** the eight concepts R2-05.2 … R2-05.9 are specified in
 > [R2-05x-CONCEPT-MAP.md](R2-05x-CONCEPT-MAP.md) — dependency graph, shared schema,
-> leakage criteria and the ambiguity register. Read it before starting any of them.
+> leakage criteria and the ambiguity register. All eight are now implemented.
+>
+> **R2-06 premium / discount:** five dealing-range definitions were evaluated in
+> [R2-06-CONCEPT-MAP.md](R2-06-CONCEPT-MAP.md); exactly one is implemented and the
+> other four are documented there and nowhere else.
 
 One document per detector, each covering: definition, algorithmic rule, input, output,
 event timestamp, confirmation timestamp, edge cases, known ambiguities, test coverage,
@@ -28,7 +32,7 @@ adopted silently.
 | CisdDetector | [R2-05.7](../../user-stories/Phase-2-ICT-Engine/R2-05.7-cisd.md) | [cisd.md](cisd.md) | ✅ Done |
 | CHoCH revision | [R2-05.8](../../user-stories/Phase-2-ICT-Engine/R2-05.8-choch-revision.md) | [structure.md](structure.md) | ✅ Reviewed — no change |
 | UnicornDetector | [R2-05.9](../../user-stories/Phase-2-ICT-Engine/R2-05.9-unicorn-model.md) | [unicorn.md](unicorn.md) | ✅ Done |
-| PremiumDiscountCalculator | R2-06 | — | ⛔ Deferred |
+| DealingRangeDetector | [R2-06](../../user-stories/Phase-2-ICT-Engine/R2-06-premium-discount.md) | [dealing_range.md](dealing_range.md) | ✅ Done |
 | ICTFeatureVector | R2-07 | — | ⛔ Deferred |
 
 ## The shared contract

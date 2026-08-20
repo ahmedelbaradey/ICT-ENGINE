@@ -2,7 +2,7 @@
 
 **Protocol (ported from Learnexia):** read this before starting work; update it before opening your PR, in the same PR. Prune what has gone stale. If it isn't here, assume the next person won't know it.
 
-Last updated: **2026-08-20** — end of R2-05.x. The composite ICT layer is COMPLETE (seven detectors, Unicorn included).
+Last updated: **2026-08-20** — end of R2-06. The ICT detector layer is COMPLETE: R2-01 … R2-06. Only R2-07 (feature integration) remains in Phase 2.
 
 ---
 
@@ -14,7 +14,7 @@ Last updated: **2026-08-20** — end of R2-05.x. The composite ICT layer is COMP
 | 0.5 — Foundation | ✅ Complete |
 | 1 — Market data layer | ✅ Complete |
 | 1.5 — Real-data proof | ✅ APPROVED |
-| **2 — ICT engine** | 🔵 **In progress — R2-01..R2-05.9 done; R2-06 NOT STARTED** |
+| **2 — ICT engine** | 🔵 **In progress — R2-01..R2-06 done; only R2-07 remains** |
 | 3–10 | ⬜ Not started (5 blocked on GPU) |
 
 ### Phase 2 stories
@@ -35,8 +35,8 @@ Last updated: **2026-08-20** — end of R2-05.x. The composite ICT layer is COMP
 | R2-05.7 CISD | ✅ Done |
 | R2-05.8 CHoCH revision | ✅ Reviewed — no behaviour change |
 | R2-05.9 Unicorn | ✅ Done — Breaker ∩ same-polarity FVG, 56 tests |
-| R2-06 PremiumDiscount | ⬜ Not started — R2-05.x is complete, so this is next |
-| R2-07 ICT feature integration | ⬜ |
+| R2-06 PremiumDiscount | ✅ Done — dealing range + premium/discount, 310 tests |
+| R2-07 ICT feature integration | ⬜ Not started — every dependency is complete |
 
 Stories in [user-stories/](../../user-stories/README.md), tasks in [tasks/](../../tasks/README.md).
 **Strict order** — one story completed and validated before the next begins.
@@ -245,6 +245,35 @@ Full results: [DATA_PROOF.md](../financial-ai/DATA_PROOF.md). A re-run against t
   gate ON (the default) EURUSD 1H yields 3 Unicorns and XAUUSD 1H yields 0. The
   real-data suite runs the ungated Breaker so the geometry is exercised everywhere.
 
+## Gotchas found in R2-06 (dealing range)
+
+- **The range high is the BROKEN structural level, not the highest price traded.** It
+  cannot be the running extreme without an unconfirmed pivot. The measured consequence:
+  **42–81% of real observations have `percentage_position` outside `[0, 1]`.** That is
+  correct and documented, but anyone consuming the number must expect out-of-range
+  values as the *common* case, not the exception.
+- **The range definition is deliberately NOT configurable.** Five candidates were
+  evaluated (`docs/ict/R2-06-CONCEPT-MAP.md`); one is implemented. Two live definitions
+  would force every downstream result to name which one produced it. A test asserts
+  the config surface has no range-definition knob.
+- **EQUILIBRIUM is a band, never `==`.** Default half a tick — finer than the
+  instrument can express, so it means "at equilibrium" while staying float-safe.
+  Testing *exactly* on the band edge is unreliable (`(x + b) - x != b` in binary
+  floating point), which is the reason the band exists; test just inside and outside.
+- **A degenerate range returns `position = NaN`, and `zone` is still defined**, because
+  classification compares against equilibrium instead of dividing by width. Returning
+  0.5 would have been a lie.
+- **A source guard that scans raw text will flag the module docstring.** `dealing_range.py`
+  names `frame["high"].max()` in order to warn against it, so the guard strips
+  docstrings as well as comments — and there is a test asserting the stripper works,
+  because a stripper that returned nothing would make every guard vacuous.
+- **`close_time` is timezone-aware; `np.datetime64` silently drops the tz** and then
+  refuses to compare. Segment masks stay in pandas. The resulting boolean array from a
+  pandas comparison is read-only, so `&=` needs an explicit `.copy()` first.
+- **`swing_point_id` joins `structure_break_id` in `composites.py`.** R2-02/R2-03 are
+  approved and are not modified to add id fields; consumers derive ids from values the
+  records already carry.
+
 ## R2-05.x — what the next person needs to know
 
 **Read [`docs/ict/R2-05x-CONCEPT-MAP.md`](../ict/R2-05x-CONCEPT-MAP.md) first.** All
@@ -274,7 +303,7 @@ right" to "did the composite inherit its sources' observability". The governing 
 
 ## Open items for Phase 2
 
-1. **R2-06 PremiumDiscount is the next story.** All the risk is in which dealing range is chosen, so that must be configuration with a documented default. R2-05.x no longer blocks it.
+1. **R2-07 ICT feature integration is the next story.** Every dependency (R2-01 … R2-06) is complete. It is where `ICTMarketState`/`ICTFeatureVector` and any cross-timeframe projection belong — R2-06 is deliberately timeframe-local.
 2. **`UnicornDetector.analyse` is now the engine's slowest call** — ~25 s for 2933 1m bars, because `track_zone_fill` runs a Python loop per zone and there are thousands of Unicorns. `detect` alone is ~2.9 s. No correctness impact; it also makes the real-data suite noticeably slower (556 tests, ~7 min). Vectorising the fill scan is the fix, and it belongs to a performance story with a benchmark.
 3. **The IFVG detector is the engine's second hotspot** — 3.3 s for 2933 1m bars, via `window.iterrows()` per zone. No correctness impact; reported by the R2-05.2 audit and deliberately not optimised. The fix is a vectorised numpy comparison when it matters.
 4. **Swings are unranked.** Many minor pivots at `left=right=2`. `strength` (prominence) is available for filtering, but R2-03/R2-07 will likely need a significance ranking.

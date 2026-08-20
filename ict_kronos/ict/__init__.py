@@ -33,6 +33,7 @@ from .composites import (
     assert_sources_observable_first,
     composite_confirmation,
     structure_break_id,
+    swing_point_id,
 )
 from .contract import (
     ContractViolation,
@@ -44,6 +45,14 @@ from .contract import (
     assert_observable,
     events_to_frame,
     filter_observable,
+)
+from .dealing_range import (
+    DealingRange,
+    DealingRangeAnalysis,
+    DealingRangeConfig,
+    DealingRangeDetector,
+    RangeObservation,
+    RangeZone,
 )
 from .fvg import (
     FvgAnalysis,
@@ -146,6 +155,10 @@ __all__ = [
     "CisdConfig",
     "CisdDetector",
     "ContractViolation",
+    "DealingRange",
+    "DealingRangeAnalysis",
+    "DealingRangeConfig",
+    "DealingRangeDetector",
     "DEFAULT_SESSIONS",
     "DeliveryState",
     "Direction",
@@ -180,6 +193,8 @@ __all__ = [
     "OrderBlockConfig",
     "OrderBlockDetector",
     "RDRB_CANDLES",
+    "RangeObservation",
+    "RangeZone",
     "RdrbAnalysis",
     "RdrbConfig",
     "RdrbDetector",
@@ -224,4 +239,5 @@ __all__ = [
     "resolve_window",
     "resolve_windows",
     "structure_break_id",
+    "swing_point_id",
 ]

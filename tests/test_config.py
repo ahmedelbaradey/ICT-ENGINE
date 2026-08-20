@@ -8,6 +8,7 @@ import pytest
 
 from ict_kronos.app.config import (
     CompositeIctConfig,
+    DealingRangeConfig,
     KronosBackendKind,
     KronosConfig,
     LlmBackendKind,
@@ -35,6 +36,8 @@ _ENV_VARS = (
     "ICT_UNICORN_MAX_BARS_FROM_BREAKER",
     "ICT_UNICORN_MIN_OVERLAP_POINTS",
     "ICT_UNICORN_REQUIRE_FULL_CONTAINMENT",
+    "ICT_EQUILIBRIUM_TOLERANCE_POINTS",
+    "ICT_DEALING_RANGE_CLASSIFY_BARS",
 )
 
 
@@ -193,3 +196,36 @@ class TestCompositeIctEnvOverrides:
         config = CompositeIctConfig.from_env()
         with pytest.raises(Exception):  # noqa: B017 - FrozenInstanceError
             config.unicorn_max_bars_from_breaker = 3
+
+
+class TestDealingRangeConfig:
+    """R2-06. The range DEFINITION is deliberately absent from this surface."""
+
+    def test_the_equilibrium_band_defaults_to_half_a_tick(self):
+        """Finer than the instrument can express: numerically safe without being a
+        claim about how wide an equilibrium zone should be."""
+        assert DealingRangeConfig.from_env().equilibrium_tolerance_points == 0.5
+
+    def test_bar_classification_is_on_by_default(self):
+        assert DealingRangeConfig.from_env().classify_bars is True
+
+    def test_the_tolerance_is_env_overridable(self, monkeypatch):
+        monkeypatch.setenv("ICT_EQUILIBRIUM_TOLERANCE_POINTS", "25")
+        assert DealingRangeConfig.from_env().equilibrium_tolerance_points == 25.0
+
+    def test_classification_can_be_disabled_from_the_environment(self, monkeypatch):
+        monkeypatch.setenv("ICT_DEALING_RANGE_CLASSIFY_BARS", "false")
+        assert DealingRangeConfig.from_env().classify_bars is False
+
+    def test_there_is_no_range_definition_setting(self):
+        """Four candidates were evaluated and one implemented. A knob here would make
+        every downstream result ambiguous about which range produced it."""
+        fields = set(DealingRangeConfig().__dataclass_fields__)
+        assert fields == {"equilibrium_tolerance_points", "classify_bars"}
+
+    def test_it_is_wired_into_settings(self):
+        assert isinstance(Settings.from_env().dealing_range, DealingRangeConfig)
+
+    def test_it_is_frozen(self):
+        with pytest.raises(Exception):  # noqa: B017 - FrozenInstanceError
+            DealingRangeConfig().classify_bars = False

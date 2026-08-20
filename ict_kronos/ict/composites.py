@@ -163,6 +163,20 @@ def later_confirmed(first, second):
     return first if first.confirmation_timestamp >= second.confirmation_timestamp else second
 
 
+def swing_point_id(swing) -> str:
+    """Stable id for an R2-02 ``SwingPoint``, computed WITHOUT modifying R2-02.
+
+    Same reasoning as :func:`structure_break_id`: R2-02 is approved and is not
+    rewritten to add an id field, so consumers that need to *reference* a pivot derive
+    one here from values the record already carries. Direction is part of it because a
+    single bar can be both a high and a low pivot under some tie policies.
+    """
+    return (
+        f"swing:{swing.symbol}:{swing.timeframe}:{swing.direction.value}:"
+        f"{swing.event_timestamp.isoformat()}"
+    )
+
+
 def structure_break_id(brk) -> str:
     """Stable id for an R2-03 ``StructureBreak``, computed WITHOUT modifying R2-03.
 

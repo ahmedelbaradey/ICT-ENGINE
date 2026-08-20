@@ -372,6 +372,33 @@ class CompositeIctConfig:
 
 
 @dataclass(frozen=True)
+class DealingRangeConfig:
+    """R2-06 premium / discount. See ``docs/ict/dealing_range.md``.
+
+    Deliberately two settings. The **range definition is not configurable**: four
+    alternatives were evaluated in ``docs/ict/R2-06-CONCEPT-MAP.md`` and exactly one
+    is implemented, because two live definitions would force every downstream result
+    to name which one produced it — and the first person who forgets makes the
+    research irreproducible.
+
+    ``equilibrium_tolerance_points`` defaults to half a tick, which is finer than the
+    instrument can express. That makes EQUILIBRIUM mean "at equilibrium" while still
+    avoiding floating-point equality; it is a numerical-safety default, not a claim
+    about how wide an equilibrium zone should be.
+    """
+
+    equilibrium_tolerance_points: float = 0.5
+    classify_bars: bool = True
+
+    @classmethod
+    def from_env(cls) -> DealingRangeConfig:
+        return cls(
+            equilibrium_tolerance_points=_get_float("ICT_EQUILIBRIUM_TOLERANCE_POINTS", 0.5),
+            classify_bars=_get_bool("ICT_DEALING_RANGE_CLASSIFY_BARS", True),
+        )
+
+
+@dataclass(frozen=True)
 class TrueDailyOpenConfig:
     """True Daily Open boundary (R2-05.1). See ``docs/ict/true_daily_open.md``.
 
@@ -479,6 +506,7 @@ class Settings:
     fvg: FvgDetectionConfig = field(default_factory=FvgDetectionConfig.from_env)
     true_daily_open: TrueDailyOpenConfig = field(default_factory=TrueDailyOpenConfig.from_env)
     composites: CompositeIctConfig = field(default_factory=CompositeIctConfig.from_env)
+    dealing_range: DealingRangeConfig = field(default_factory=DealingRangeConfig.from_env)
     kronos: KronosConfig = field(default_factory=KronosConfig.from_env)
     llm: LlmConfig = field(default_factory=LlmConfig.from_env)
     ingest_poller: PollerConfig = field(default_factory=lambda: PollerConfig.for_lane("ingest"))
@@ -497,6 +525,7 @@ class Settings:
             fvg=FvgDetectionConfig.from_env(),
             true_daily_open=TrueDailyOpenConfig.from_env(),
             composites=CompositeIctConfig.from_env(),
+            dealing_range=DealingRangeConfig.from_env(),
             kronos=KronosConfig.from_env(),
             llm=LlmConfig.from_env(),
             ingest_poller=PollerConfig.for_lane("ingest"),
