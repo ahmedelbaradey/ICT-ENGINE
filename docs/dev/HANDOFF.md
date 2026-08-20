@@ -2,7 +2,7 @@
 
 **Protocol (ported from Learnexia):** read this before starting work; update it before opening your PR, in the same PR. Prune what has gone stale. If it isn't here, assume the next person won't know it.
 
-Last updated: **2026-08-20** — end of R2-06. The ICT detector layer is COMPLETE: R2-01 … R2-06. Only R2-07 (feature integration) remains in Phase 2.
+Last updated: **2026-08-20** — end of R2-07. **Phase 2 is COMPLETE**: R2-01 … R2-07, detectors plus the point-in-time state and feature layers.
 
 ---
 
@@ -14,7 +14,7 @@ Last updated: **2026-08-20** — end of R2-06. The ICT detector layer is COMPLET
 | 0.5 — Foundation | ✅ Complete |
 | 1 — Market data layer | ✅ Complete |
 | 1.5 — Real-data proof | ✅ APPROVED |
-| **2 — ICT engine** | 🔵 **In progress — R2-01..R2-06 done; only R2-07 remains** |
+| **2 — ICT engine** | ✅ **Complete — R2-01..R2-07** |
 | 3–10 | ⬜ Not started (5 blocked on GPU) |
 
 ### Phase 2 stories
@@ -36,7 +36,7 @@ Last updated: **2026-08-20** — end of R2-06. The ICT detector layer is COMPLET
 | R2-05.8 CHoCH revision | ✅ Reviewed — no behaviour change |
 | R2-05.9 Unicorn | ✅ Done — Breaker ∩ same-polarity FVG, 56 tests |
 | R2-06 PremiumDiscount | ✅ Done — dealing range + premium/discount, 310 tests |
-| R2-07 ICT feature integration | ⬜ Not started — every dependency is complete |
+| R2-07 ICT feature integration | ✅ Done — ICTMarketState + ICTFeatureVector (56 features) |
 
 Stories in [user-stories/](../../user-stories/README.md), tasks in [tasks/](../../tasks/README.md).
 **Strict order** — one story completed and validated before the next begins.
@@ -245,6 +245,35 @@ Full results: [DATA_PROOF.md](../financial-ai/DATA_PROOF.md). A re-run against t
   gate ON (the default) EURUSD 1H yields 3 Unicorns and XAUUSD 1H yields 0. The
   real-data suite runs the ungated Breaker so the geometry is exercised everywhere.
 
+## Gotchas found in R2-07 (state + feature vector)
+
+- **`0` and UNKNOWN must never be conflated, and it is easy to.** `buy_side_count == 0`
+  means "no resting liquidity"; `nearest_buy_side_points is None` means "nothing to
+  measure to". Emitting `0` for both tells a model price is sitting ON a level that
+  does not exist. `as_dict()` → `None`, `as_row()` → `nan`, counts stay real zeros.
+- **`TrueDailyOpenDetector.boundary_for` takes a `date` and returns a TUPLE**
+  `(instant, anomaly)`. Passing a datetime and comparing against the tuple silently
+  yields `False` forever — the staleness flag was wrong until caught. The trading date
+  comes from `as_of.astimezone(detector.config.zone).date()` instead.
+- **Never call a detector's convenience query inside a per-instant loop.**
+  `latest_at()` and `session_state_at()` re-run detection on every call; using them per
+  bar made state construction 8x slower than needed. Levels and session windows are
+  resolved ONCE per frame and filtered through the gate per instant.
+- **The real-data suite needs a per-(symbol, timeframe) analysis cache.** Running all
+  eleven detectors over a 2933-bar 1m frame is tens of seconds (Unicorn's lifecycle
+  pass dominates); re-running it inside every test blew a 15-minute timeout. The
+  analyses are pure functions of the frame, so caching the INPUTS changes nothing a
+  test observes.
+- **A source guard must strip docstrings, not just comments.** Both new modules name
+  the things the guards ban in order to warn against them, so a raw-text guard flags
+  its own warning. There is a test asserting the stripper still returns code.
+- **A "too short for anything" fixture is harder to build than it looks.** Three
+  *rising* candles with non-overlapping wicks form a perfectly valid bullish FVG. The
+  empty fixture has to be flat.
+- **`ICTFeatureVector` collapses `unknown` and `neutral` bias to `0`** — a deliberate,
+  documented lossy projection. `ICTMarketState` keeps them apart, and that is the place
+  to read if the distinction matters.
+
 ## Gotchas found in R2-06 (dealing range)
 
 - **The range high is the BROKEN structural level, not the highest price traded.** It
@@ -303,12 +332,14 @@ right" to "did the composite inherit its sources' observability". The governing 
 
 ## Open items for Phase 2
 
-1. **R2-07 ICT feature integration is the next story.** Every dependency (R2-01 … R2-06) is complete. It is where `ICTMarketState`/`ICTFeatureVector` and any cross-timeframe projection belong — R2-06 is deliberately timeframe-local.
-2. **`UnicornDetector.analyse` is now the engine's slowest call** — ~25 s for 2933 1m bars, because `track_zone_fill` runs a Python loop per zone and there are thousands of Unicorns. `detect` alone is ~2.9 s. No correctness impact; it also makes the real-data suite noticeably slower (556 tests, ~7 min). Vectorising the fill scan is the fix, and it belongs to a performance story with a benchmark.
-3. **The IFVG detector is the engine's second hotspot** — 3.3 s for 2933 1m bars, via `window.iterrows()` per zone. No correctness impact; reported by the R2-05.2 audit and deliberately not optimised. The fix is a vectorised numpy comparison when it matters.
-4. **Swings are unranked.** Many minor pivots at `left=right=2`. `strength` (prominence) is available for filtering, but R2-03/R2-07 will likely need a significance ranking.
-5. **No holiday calendar yet.** A bank holiday looks like any other empty window: correctly no occurrence, but the detector cannot say *why*. R2-04 ("previous day") likely forces the issue.
-6. **Multi-year data availability is UNCONFIRMED.** Only 4 days are proven. Whether Dukascopy has complete 2021-2025 coverage for both symbols has not been checked, so the Master Plan §20 split is unvalidated. Run a metered background backfill early.
-7. **`StorageConfig.raw_root` is defined but unused.** The `.bi5` cache serves as the raw immutable archive. Decide whether decoded ticks are also persisted as Parquet.
-8. **The outbox lane is not wired.** `app/db.py` is not ported — everything runs file-only. Port it when a long-running lane actually needs it.
-9. **No cross-vendor data comparison.** Zero ticks were rejected, but internal consistency is a weaker claim than agreement with a second source.
+1. **Phase 2 is complete; Phase 3 (feature dataset) is next.** `ICTFeatureVector` is the input it consumes; `feature_version` (`r2-07.1`) ties a dataset to its definitions.
+2. **Multi-timeframe assembly is still unbuilt and is now the largest known gap.** The R2-07 brief directed a timeframe-local story, so HTF context was deliberately not implemented. `align_htf_context()` — which joins on `close_time`, never `timestamp` — remains the only sanctioned join, and `ICTMarketState` needs no restructuring to accept it.
+3. **State construction costs ~2 ms per instant** (~190 ms for 190 15m bars end to end). Building a state for every bar of a multi-year 1m dataset would be hours; Phase 3 should either sample or push the loop down. Reported, not optimised.
+4. **`UnicornDetector.analyse` is now the engine's slowest call** — ~25 s for 2933 1m bars, because `track_zone_fill` runs a Python loop per zone and there are thousands of Unicorns. `detect` alone is ~2.9 s. No correctness impact; it also makes the real-data suite noticeably slower (556 tests, ~7 min). Vectorising the fill scan is the fix, and it belongs to a performance story with a benchmark.
+5. **The IFVG detector is the engine's second hotspot** — 3.3 s for 2933 1m bars, via `window.iterrows()` per zone. No correctness impact; reported by the R2-05.2 audit and deliberately not optimised. The fix is a vectorised numpy comparison when it matters.
+6. **Swings are unranked.** Many minor pivots at `left=right=2`. `strength` (prominence) is available for filtering, but R2-03/R2-07 will likely need a significance ranking.
+7. **No holiday calendar yet.** A bank holiday looks like any other empty window: correctly no occurrence, but the detector cannot say *why*. R2-04 ("previous day") likely forces the issue.
+8. **Multi-year data availability is UNCONFIRMED.** Only 4 days are proven. Whether Dukascopy has complete 2021-2025 coverage for both symbols has not been checked, so the Master Plan §20 split is unvalidated. Run a metered background backfill early.
+9. **`StorageConfig.raw_root` is defined but unused.** The `.bi5` cache serves as the raw immutable archive. Decide whether decoded ticks are also persisted as Parquet.
+10. **The outbox lane is not wired.** `app/db.py` is not ported — everything runs file-only. Port it when a long-running lane actually needs it.
+11. **No cross-vendor data comparison.** Zero ticks were rejected, but internal consistency is a weaker claim than agreement with a second source.

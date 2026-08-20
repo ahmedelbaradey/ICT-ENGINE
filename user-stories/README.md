@@ -31,7 +31,7 @@ Deterministic ICT market-structure detection. **No LLM decides whether a pattern
 | [R2-05.8](Phase-2-ICT-Engine/R2-05.8-choch-revision.md) | CHoCH semantics revision | R2-03, R2-05.7 | ✅ Reviewed — no change |
 | [R2-05.9](Phase-2-ICT-Engine/R2-05.9-unicorn-model.md) | Unicorn — Breaker ∩ FVG | R2-05.4, R2-05 | ✅ Done |
 | [R2-06](Phase-2-ICT-Engine/R2-06-premium-discount.md) | Premium / Discount — dealing range, equilibrium, position | R2-02, R2-03 | ✅ Done |
-| [R2-07](Phase-2-ICT-Engine/R2-07-ict-feature-integration.md) | `ICTMarketState` / `ICTFeatureVector` integration | R2-01…R2-06 | ⛔ Not started — every dependency is now complete |
+| [R2-07](Phase-2-ICT-Engine/R2-07-ict-feature-integration.md) | `ICTMarketState` / `ICTFeatureVector` integration | R2-01…R2-06 | ✅ Done — timeframe-local; HTF assembly deferred |
 
 ## Out of scope for Phase 2
 

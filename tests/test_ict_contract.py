@@ -210,16 +210,50 @@ class TestTheSingleObservabilityGateEngineWide:
 
         return sorted(_P("ict_kronos/ict").glob("*.py"))
 
+    @staticmethod
+    def _code_lines(module) -> list[str]:
+        """Executable lines only — comments AND docstrings stripped.
+
+        ``market_state.py`` states in its docstring that it contains no
+        ``confirmation_timestamp <= as_of`` comparison, precisely so a reader knows the
+        rule. A guard that scanned raw text would flag that promise as a violation of
+        itself. Stripping docstrings is what makes this a guard on CODE.
+        """
+        from tests.test_market_state import _code_of
+
+        return _code_of(str(module)).splitlines()
+
+    @staticmethod
+    def _is_gate_line(line: str) -> bool:
+        """A hand-rolled observability gate: a confirmation COMPARED against a decision time."""
+        return (
+            "confirmation_timestamp" in line
+            and "as_of" in line
+            and "is_observable_at" not in line
+            and any(op in line.replace("->", "") for op in ("<", ">", "=="))
+        )
+
+    def test_the_reversed_spelling_is_still_caught(self):
+        """Proof the operator requirement narrowed the guard without blinding it."""
+        assert self._is_gate_line("if as_of >= event.confirmation_timestamp:")
+        assert self._is_gate_line("ok = event.confirmation_timestamp <= as_of")
+        assert self._is_gate_line("hit = as_of == event.confirmation_timestamp")
+        assert not self._is_gate_line("n = self._bars_since(e.confirmation_timestamp, as_of)")
+        assert not self._is_gate_line("def _f(self, as_of: datetime) -> int | None:")
+
+    def test_the_guard_actually_reads_code(self):
+        """A stripper returning nothing would make both guards below vacuous."""
+        by_name = {m.name: m for m in self._modules()}
+        code = self._code_lines(by_name["market_state.py"])
+        assert any("def state_at(" in line for line in code)
+        assert not any('"""' in line for line in code)
+
     def test_no_detector_hand_rolls_the_observability_comparison(self):
         offenders = {}
         for module in self._modules():
             if module.name in self.OWNERS:
                 continue
-            code = [
-                line.strip()
-                for line in module.read_text(encoding="utf-8").splitlines()
-                if not line.lstrip().startswith("#")
-            ]
+            code = self._code_lines(module)
             hits = [
                 line
                 for line in code
@@ -236,19 +270,21 @@ class TestTheSingleObservabilityGateEngineWide:
         )
 
     def test_no_detector_compares_a_confirmation_against_an_as_of(self):
-        """The tight form: an observability check is confirmation vs a decision time."""
+        """The tight form: an observability check is confirmation COMPARED to a decision time.
+
+        This catches the reversed spelling (``as_of >= e.confirmation_timestamp``) that the
+        guard above cannot see, because there the operator precedes the attribute.
+
+        A comparison operator is required. Naming both on one line is not a gate —
+        ``_bars_since(e.confirmation_timestamp, as_of)`` *measures* the distance between two
+        instants for an event the detector already admitted; banning that would ban
+        arithmetic rather than the rule it is meant to protect.
+        """
         offenders = {}
         for module in self._modules():
             if module.name in self.OWNERS:
                 continue
-            hits = [
-                line.strip()
-                for line in module.read_text(encoding="utf-8").splitlines()
-                if "confirmation_timestamp" in line
-                and "as_of" in line
-                and "is_observable_at" not in line
-                and not line.lstrip().startswith("#")
-            ]
+            hits = [line for line in self._code_lines(module) if self._is_gate_line(line)]
             if hits:
                 offenders[module.name] = hits
 

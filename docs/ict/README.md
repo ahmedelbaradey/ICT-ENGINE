@@ -33,7 +33,7 @@ adopted silently.
 | CHoCH revision | [R2-05.8](../../user-stories/Phase-2-ICT-Engine/R2-05.8-choch-revision.md) | [structure.md](structure.md) | ✅ Reviewed — no change |
 | UnicornDetector | [R2-05.9](../../user-stories/Phase-2-ICT-Engine/R2-05.9-unicorn-model.md) | [unicorn.md](unicorn.md) | ✅ Done |
 | DealingRangeDetector | [R2-06](../../user-stories/Phase-2-ICT-Engine/R2-06-premium-discount.md) | [dealing_range.md](dealing_range.md) | ✅ Done |
-| ICTFeatureVector | R2-07 | — | ⛔ Deferred |
+| ICTMarketState / ICTFeatureVector | [R2-07](../../user-stories/Phase-2-ICT-Engine/R2-07-ict-feature-integration.md) | [market_state.md](market_state.md) · [features.md](features.md) | ✅ Done |
 
 ## The shared contract
 
