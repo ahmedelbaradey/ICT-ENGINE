@@ -32,9 +32,11 @@ pure, deterministic functions of observed bars.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
+from typing import Protocol, runtime_checkable
 
 import pandas as pd
 
@@ -108,6 +110,18 @@ class ContractViolation(ValueError):
     """Raised when an event breaks the contract's invariants."""
 
 
+@runtime_checkable
+class Confirmable(Protocol):
+    """Anything whose observability is governed by a ``confirmation_timestamp``.
+
+    Lets the one observability gate cover detector-native records (liquidity levels,
+    sweeps) as well as :class:`IctEvent`, so no detector needs its own copy of the
+    rule.
+    """
+
+    confirmation_timestamp: datetime
+
+
 @dataclass(frozen=True)
 class IctEvent:
     """One deterministic ICT observation.
@@ -163,9 +177,7 @@ class IctEvent:
         Confirmation exactly at ``as_of`` counts as observable — the information is
         known at that instant.
         """
-        if as_of.tzinfo is None:
-            raise ContractViolation(f"as_of must be timezone-aware UTC; got naive {as_of!r}")
-        return self.confirmation_timestamp <= as_of
+        return is_observable_at(self, as_of)
 
     def as_dict(self) -> dict:
         return {
@@ -219,34 +231,51 @@ def events_to_frame(events: list[IctEvent]) -> pd.DataFrame:
     return frame
 
 
-def filter_observable(events: list[IctEvent], as_of: datetime) -> list[IctEvent]:
-    """The events a decision timestamped ``as_of`` is allowed to see.
+def is_observable_at(item: Confirmable, as_of: datetime) -> bool:
+    """THE observability predicate. Every check in the codebase resolves to this.
 
-    **This is the single gate every downstream feature builder must go through.**
-    R2-07 assembles feature vectors from detector output, and the only thing standing
-    between "a swing exists at 09:05" and "a model at 09:05 knew about it" is this
-    filter. Keeping it here — one reviewed function, like ``align_htf_context`` for
-    timeframes — is what makes the rule enforceable rather than merely stated.
+    Defined once as a free function so it applies to anything carrying a
+    ``confirmation_timestamp`` — ``IctEvent``, but also detector-native records such
+    as ``LiquidityLevel`` and ``LiquiditySweep``. Detectors must not hand-roll
+    ``x.confirmation_timestamp <= t``: five private copies of a rule are five places
+    it can silently drift.
 
-    Confirmation exactly at ``as_of`` counts as observable: the information is known
+    Confirmation exactly at ``as_of`` counts as observable — the information is known
     at that instant.
     """
     if as_of.tzinfo is None:
         raise ContractViolation(f"as_of must be timezone-aware UTC; got naive {as_of!r}")
-    return [event for event in events if event.confirmation_timestamp <= as_of]
+    return item.confirmation_timestamp <= as_of
 
 
-def assert_observable(events: list[IctEvent], as_of: datetime) -> None:
-    """Fail loudly if any event in ``events`` was not yet knowable at ``as_of``.
+def filter_observable(items: Sequence[Confirmable], as_of: datetime) -> list:
+    """What a decision timestamped ``as_of`` is allowed to see.
+
+    **The single gate every downstream consumer must go through.** R2-07 assembles
+    feature vectors from detector output, and the only thing standing between "a swing
+    exists at 09:05" and "a model at 09:05 knew about it" is this filter. Keeping it
+    here — one reviewed function, like ``align_htf_context`` for timeframes — is what
+    makes the rule enforceable rather than merely stated.
+
+    Accepts any confirmable record, not only :class:`IctEvent`.
+    """
+    if as_of.tzinfo is None:
+        raise ContractViolation(f"as_of must be timezone-aware UTC; got naive {as_of!r}")
+    return [item for item in items if is_observable_at(item, as_of)]
+
+
+def assert_observable(items: Sequence[Confirmable], as_of: datetime) -> None:
+    """Fail loudly if anything in ``items`` was not yet knowable at ``as_of``.
 
     The assertion form of :func:`filter_observable`, for tests and for defensive
     checks inside feature assembly.
     """
-    leaking = [e for e in events if not e.is_observable_at(as_of)]
+    leaking = [x for x in items if not is_observable_at(x, as_of)]
     if leaking:
+        first = leaking[0]
+        detail = first.as_dict() if hasattr(first, "as_dict") else repr(first)
         raise ContractViolation(
-            f"{len(leaking)} event(s) are not observable at {as_of.isoformat()}; "
-            f"first offender: {leaking[0].as_dict()}"
+            f"{len(leaking)} item(s) are not observable at {as_of.isoformat()}; " f"first offender: {detail}"
         )
 
 

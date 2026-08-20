@@ -124,6 +124,8 @@ created_ts   confirmation_ts            swept_timestamp
 
 **Three states carry the meaning.** `APPROACHED` is an optional refinement and is **off by default** (`approach_tolerance_points=None`) — deliberately not over-engineered.
 
+**`PENDING` never appears in output, and that absence is a guarantee, not an oversight.** `analyse()` constructs a level only once the period/pair that defines it has completed, so every returned level has already confirmed. `PENDING` is the transient label a level carries between construction and admission during the bar walk. Pinned by `TestPendingIsNeverEmitted`.
+
 | Status | Meaning |
 |---|---|
 | `PENDING` | Created but not yet observable — the period/pair has not completed |
@@ -219,6 +221,8 @@ The cost is that one wick can emit several sweep events. That is correct: severa
 
 ## 10. Leakage rules
 
+**The single gate.** `LiquidityLevel` and `LiquiditySweep` both implement `is_observable_at()`, which delegates to the contract's one `is_observable_at()` predicate; `filter_observable()` / `assert_observable()` accept them directly. The module hand-rolls **no** `confirmation_timestamp <= t` comparison, and a source-level test (`test_liquidity_module_hand_rolls_no_observability_comparison`) fails if one is ever reintroduced — five private copies of a rule are five places it can drift.
+
 1. Swings enter only as **confirmed** R2-02 swings — never raw candidates.
 2. Sessions enter only as **completed** R2-01 occurrences — never running state.
 3. A period level confirms at the **period's end**, never at its extreme bar.
@@ -244,12 +248,12 @@ export ICT_LIQUIDITY_INCLUDE_SWING_LEVELS=1
 
 ## 12. Test coverage
 
-**203 tests** across three files (73 + 32 + 98).
+**210 tests** across three files (73 + 39 + 98).
 
 | File | Tests | Covers |
 |---|---|---|
 | `tests/test_liquidity.py` | 73 | Config, all ten level types, equal-level tolerance and runs, side classification, sweeps (penetration/rejection/tolerance/terminality), multi-level policy, lifecycle, day/week calendar, events, boundaries |
-| `tests/test_liquidity_leakage.py` | 32 | Confirmed-inputs-only (swings, sessions, days, weeks), a **naive-implementation proof** that removing the constraint leaks, sweep-after-observability, immutability, batch == prefix == bar-by-bar replay, gaps/weekends, HTF non-leakage, **the R2-03 wick-vs-break separation** |
+| `tests/test_liquidity_leakage.py` | 39 | Confirmed-inputs-only (swings, sessions, days, weeks), a **naive-implementation proof** that removing the constraint leaks, sweep-after-observability, immutability, batch == prefix == bar-by-bar replay, gaps/weekends, HTF non-leakage, **the R2-03 wick-vs-break separation** |
 | `tests/test_liquidity_real_data.py` | 98 | Real EURUSD + XAUUSD on 1M/5M/15M: every level type occurring, prices matching real bars, period confirmation timing, sweeps and their extremes, both rejections and break-throughs, multi-level sweeps, weekend behaviour, the DST day-boundary shift, session inheritance from R2-01, structure separation, the ML data model |
 
 ## 13. A real bug this design caught

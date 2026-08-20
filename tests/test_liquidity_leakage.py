@@ -493,3 +493,78 @@ class TestStatusConsistency:
         sweeps = detector.analyse(frame, Symbol.EURUSD, Timeframe.M5).sweeps
         ids = [s.level_id for s in sweeps]
         assert len(ids) == len(set(ids)), "a consumed level was swept more than once"
+
+
+class TestTheGateIsTheSingleObservabilityPath:
+    """Audit findings, pinned so they cannot regress.
+
+    The R2-04 requirement is not merely that observability is *correct* but that
+    ``filter_observable`` / ``assert_observable`` remain the **single gate**. Five
+    private copies of ``x.confirmation_timestamp <= t`` are five places the rule can
+    silently drift.
+    """
+
+    def test_liquidity_module_hand_rolls_no_observability_comparison(self):
+        """Source-level guard: the module must delegate, never re-implement."""
+        from pathlib import Path
+
+        source = Path("ict_kronos/ict/liquidity.py").read_text(encoding="utf-8")
+        offenders = [
+            line.strip()
+            for line in source.splitlines()
+            if "confirmation_timestamp <=" in line or "confirmation_timestamp >=" in line
+        ]
+        assert offenders == [], (
+            "liquidity.py re-implements the observability comparison instead of "
+            f"calling the contract gate: {offenders}"
+        )
+
+    def test_levels_and_sweeps_expose_the_shared_predicate(self, detector, frame):
+        analysis = detector.analyse(frame, Symbol.EURUSD, Timeframe.M5)
+        level, sweep = analysis.levels[0], analysis.sweeps[0]
+
+        assert not level.is_observable_at(level.confirmation_timestamp - timedelta(seconds=1))
+        assert level.is_observable_at(level.confirmation_timestamp)
+        assert not sweep.is_observable_at(sweep.confirmation_timestamp - timedelta(seconds=1))
+        assert sweep.is_observable_at(sweep.confirmation_timestamp)
+
+    def test_the_gate_accepts_detector_native_records(self, detector, frame):
+        """``filter_observable`` must work on levels and sweeps, not only IctEvent —
+        otherwise detectors are forced to hand-roll their own filter."""
+        analysis = detector.analyse(frame, Symbol.EURUSD, Timeframe.M5)
+        midpoint = analysis.levels[len(analysis.levels) // 2].confirmation_timestamp
+
+        visible_levels = filter_observable(analysis.levels, midpoint)
+        assert visible_levels and len(visible_levels) < len(analysis.levels)
+        assert_observable(visible_levels, midpoint)
+
+        assert_observable(filter_observable(analysis.sweeps, midpoint), midpoint)
+
+    def test_the_gate_rejects_naive_timestamps_for_native_records(self, detector, frame):
+        analysis = detector.analyse(frame, Symbol.EURUSD, Timeframe.M5)
+        naive = datetime(2024, 3, 8, 12, 0)  # noqa: DTZ001
+        with pytest.raises(ContractViolation, match="timezone-aware"):
+            filter_observable(analysis.levels, naive)
+
+
+class TestPendingIsNeverEmitted:
+    """``PENDING`` is declared but must never appear in output — and that absence IS
+    the guarantee that no unobservable level is ever returned."""
+
+    def test_no_level_is_returned_in_pending_state(self, detector, frame):
+        analysis = detector.analyse(frame, Symbol.EURUSD, Timeframe.M5)
+        assert analysis.status
+        assert LiquidityStatus.PENDING not in set(analysis.status.values())
+
+    def test_every_returned_level_is_already_observable(self, detector, frame):
+        """The stronger statement of the same guarantee: by the end of the observed
+        data every emitted level has confirmed."""
+        analysis = detector.analyse(frame, Symbol.EURUSD, Timeframe.M5)
+        last_close = frame["timestamp"].iloc[-1].to_pydatetime() + timedelta(minutes=5)
+        assert_observable(analysis.levels, last_close)
+
+    def test_observable_at_also_never_yields_pending(self, detector, frame):
+        analysis = detector.analyse(frame, Symbol.EURUSD, Timeframe.M5)
+        midpoint = analysis.levels[len(analysis.levels) // 2].confirmation_timestamp
+        limited = detector.observable_at(frame, midpoint, Symbol.EURUSD, Timeframe.M5)
+        assert LiquidityStatus.PENDING not in set(limited.status.values())

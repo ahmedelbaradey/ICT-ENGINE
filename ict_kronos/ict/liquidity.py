@@ -33,7 +33,14 @@ import pandas as pd
 from ..app.logging import get_logger
 from ..data.resampler import with_close_time
 from ..domain import Symbol, Timeframe
-from .contract import Direction, EventStatus, EventType, IctEvent
+from .contract import (
+    Direction,
+    EventStatus,
+    EventType,
+    IctEvent,
+    filter_observable,
+    is_observable_at,
+)
 from .sessions import SessionDefinition, SessionDetector, SessionKind, resolve_windows
 from .swings import SwingConfig, SwingDetector, SwingPoint
 
@@ -204,6 +211,10 @@ class LiquidityLevel:
     period_label: str | None = None
     tolerance_points: float | None = None
 
+    def is_observable_at(self, as_of: datetime) -> bool:
+        """Delegates to the ONE contract-level predicate — never a private copy."""
+        return is_observable_at(self, as_of)
+
     @property
     def is_buy_side(self) -> bool:
         return self.side is LiquiditySide.BUY_SIDE
@@ -258,6 +269,10 @@ class LiquiditySweep:
     closed_beyond: bool
     extreme_price: float
     bar_index: int
+
+    def is_observable_at(self, as_of: datetime) -> bool:
+        """Delegates to the ONE contract-level predicate — never a private copy."""
+        return is_observable_at(self, as_of)
 
     @property
     def direction(self) -> Direction:
@@ -360,19 +375,13 @@ class LiquidityAnalysis:
         Observable, and not yet swept **as of that instant** — a level swept later is
         still active now, which is exactly the point-in-time question R2-07 asks.
         """
-        if as_of.tzinfo is None:
-            raise ValueError(f"as_of must be timezone-aware UTC; got naive {as_of!r}")
-        swept_before = {s.level_id for s in self.sweeps if s.confirmation_timestamp <= as_of}
+        swept_before = {s.level_id for s in filter_observable(self.sweeps, as_of)}
         return [
-            level
-            for level in self.levels
-            if level.confirmation_timestamp <= as_of and level.level_id not in swept_before
+            level for level in filter_observable(self.levels, as_of) if level.level_id not in swept_before
         ]
 
     def swept_by(self, as_of: datetime) -> list[LiquiditySweep]:
-        if as_of.tzinfo is None:
-            raise ValueError(f"as_of must be timezone-aware UTC; got naive {as_of!r}")
-        return [s for s in self.sweeps if s.confirmation_timestamp <= as_of]
+        return filter_observable(self.sweeps, as_of)
 
 
 @dataclass
@@ -696,9 +705,8 @@ class LiquidityDetector:
             now = close_times[index]
 
             # 1. Admit levels that have become observable BY THIS BAR'S CLOSE.
-            while cursor < len(levels) and pd.Timestamp(
-                levels[cursor].confirmation_timestamp
-            ) <= pd.Timestamp(now):
+            now_utc = pd.Timestamp(now).to_pydatetime()
+            while cursor < len(levels) and levels[cursor].is_observable_at(now_utc):
                 level = levels[cursor]
                 cursor += 1
                 active.append(level)
@@ -825,13 +833,10 @@ class LiquidityDetector:
         self, frame: pd.DataFrame, as_of: datetime, symbol: Symbol, timeframe: Timeframe
     ) -> LiquidityAnalysis:
         """The liquidity picture a decision at ``as_of`` may use."""
-        if as_of.tzinfo is None:
-            raise ValueError(f"as_of must be timezone-aware UTC; got naive {as_of!r}")
-
         full = self.analyse(frame, symbol, timeframe)
         limited = LiquidityAnalysis(
-            levels=[x for x in full.levels if x.confirmation_timestamp <= as_of],
-            sweeps=[s for s in full.sweeps if s.confirmation_timestamp <= as_of],
+            levels=filter_observable(full.levels, as_of),
+            sweeps=filter_observable(full.sweeps, as_of),
         )
         swept = {s.level_id for s in limited.sweeps}
         limited.swept_at = {k: v for k, v in full.swept_at.items() if v <= as_of}

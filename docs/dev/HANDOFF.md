@@ -24,7 +24,7 @@ Last updated: **2026-08-20** — end of R2-04 (LiquidityDetector).
 | R2-01 SessionDetector | ✅ Done — 136 tests |
 | R2-02 SwingDetector | ✅ Done — 139 tests |
 | R2-03 StructureDetector | ✅ Done — 169 tests |
-| R2-04 LiquidityDetector | ✅ Done — 203 tests |
+| R2-04 LiquidityDetector | ✅ Done — 210 tests |
 | R2-05 FVGDetector | ⬜ **Next** |
 | R2-06 PremiumDiscount | ⬜ |
 | R2-07 ICT feature integration | ⬜ |
@@ -46,7 +46,7 @@ Stories in [user-stories/](../../user-stories/README.md), tasks in [tasks/](../.
 8. **The Phase 2 detector contract is fixed** — [`ict/contract.py`](../../ict_kronos/ict/contract.py). `confirmation_timestamp` is the earliest instant an event was knowable, and the constructor refuses any event confirmed before it occurred. Every detector uses it; do not invent a per-detector variant.
 9. **Sessions are defined in LOCAL time, never UTC.** That is what makes DST automatic. Overridable via `ICT_SESSIONS_JSON`.
 10. **Swings use the n-bar fractal definition**, chosen because its confirmation lag is BOUNDED and streamable (ZigZag/ATR variants are not). `right >= 1` is enforced — a zero-lag pivot is not a swing.
-11. **`filter_observable()` is the one downstream gate.** Feature assembly (R2-07) must go through it. Do not hand-roll a confirmation filter.
+11. **`filter_observable()` / `assert_observable()` / `is_observable_at()` are THE one observability gate.** They accept any record carrying `confirmation_timestamp` (events, liquidity levels, sweeps) via the `Confirmable` protocol. **Never hand-roll `x.confirmation_timestamp <= t`** — a source-level test enforces this for liquidity, and the same rule binds every future detector.
 12. **BOS and MSS are ONE detection distinguished by prior state**, not two algorithms. **CHoCH is a synonym for MSS by default and is not emitted** — see `docs/ict/structure.md` §5. The `DISTINCT_BY_DISPLACEMENT` policy is the only alternative offered, and it is off by default.
 13. **Structure break mode defaults to CLOSE.** In WICK mode the bar that prints a higher swing high necessarily breaks the previous one, so nearly every HH also emits a BOS.
 14. **A liquidity LEVEL is not a liquidity SWEEP** — separate types, separate timestamps, never collapsed.
