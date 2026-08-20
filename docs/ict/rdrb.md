@@ -117,6 +117,30 @@ Zone `[1.0005, 1.0040]`, clearance 350 points, confirmation at C4's close.
 | `low = 1.0000` | **invalid** |
 | `low = 1.0000`, body entirely above 1.0005 | **invalid** — the wick decides, not the body |
 
+## 9a. C3's interaction with the protected wick — explicitly UNDEFINED by the rule
+
+The validity condition constrains **C4 only**. C3 is therefore *not* checked against
+C2's protected extreme, and the audit confirmed the consequence on real behaviour:
+
+| Case | Emitted? |
+|---|---|
+| C3's low **violates** C2's protected low (bullish) | **yes** |
+| C3's low sits **exactly at** C2's protected low | **yes** |
+
+This is faithful to the definition — "C4 must not reach or violate C2's wick" says
+nothing about C3 — but it means a sequence where price already traded through the
+protected extreme *before* C4 still qualifies. Whether that is desirable is a
+**semantic question the source does not answer**, so nothing is silently imposed.
+
+Recorded here rather than fixed because inventing a C3 constraint would be exactly the
+discretionary rule this engine refuses to manufacture. If a C3 rule is wanted it should
+be an explicit, configured qualifier (`require_c3_respects_protected_wick`), decided
+deliberately rather than assumed.
+
+Related: **windows overlap by design.** Five contiguous bars evaluate two windows
+(C1..C4 and C2..C5), so adjacent RDRBs can share source candles. Each has its own id
+and its own confirmation; none is a duplicate of another.
+
 ## 10. Known ambiguity
 
 **Explicitly marked, per the source-vs-interpretation rule.**
@@ -126,6 +150,7 @@ Zone `[1.0005, 1.0040]`, clearance 350 points, confirmation at C4's close.
 | Four-candle shape, C2 protected, C4 validation, wick-to-wick, C4-close confirmation | **Project-authoritative definition.** Not negotiable in code. |
 | Directional prerequisites for C1/C2/C3/C4 | **Engineering assumption** — the definition describes roles, not close directions. Defaults: C1, C2, C4 must close in the delivery direction; **C3 is unconstrained**, being described only as "intervening". Each is a separate config flag so the imposed conditions are visible. |
 | `wick_tolerance_points` | **Optional qualifier**, default 0 (strict). |
+| C3 vs the protected wick | **Undefined by the rule** — not checked. See §9a. |
 | Two-candle reading (delivery → wick → redelivery, zone from surrounding candles) | **Community interpretation. Not implemented.** |
 | Three-candle containment reading | **Community interpretation. Not implemented.** |
 

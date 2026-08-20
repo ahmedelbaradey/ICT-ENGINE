@@ -34,7 +34,7 @@ import pandas as pd
 from ..app.logging import get_logger
 from ..data.resampler import with_close_time
 from ..domain import Symbol, Timeframe
-from .contract import Direction, EventType, IctEvent
+from .contract import Direction, EventType, IctEvent, filter_observable
 
 logger = get_logger(__name__)
 
@@ -293,7 +293,7 @@ class SwingDetector:
         """
         if as_of.tzinfo is None:
             raise ValueError(f"as_of must be timezone-aware UTC; got naive {as_of!r}")
-        return [s for s in self.detect(frame, symbol, timeframe) if s.confirmation_timestamp <= as_of]
+        return filter_observable(self.detect(frame, symbol, timeframe), as_of)
 
     def with_config(self, config: SwingConfig) -> SwingDetector:
         """A detector with different fractal parameters. Configuration, not a subclass."""

@@ -34,7 +34,7 @@ import pandas as pd
 from ..app.logging import get_logger
 from ..data.resampler import with_close_time
 from ..domain import Symbol, Timeframe
-from .contract import Direction, EventType, IctEvent
+from .contract import Direction, EventType, IctEvent, filter_observable
 from .swings import SwingConfig, SwingDetector, SwingPoint
 
 logger = get_logger(__name__)
@@ -240,7 +240,7 @@ class StructureAnalysis:
         """
         if as_of.tzinfo is None:
             raise ValueError(f"as_of must be timezone-aware UTC; got naive {as_of!r}")
-        observable = [b for b in self.breaks if b.confirmation_timestamp <= as_of]
+        observable = filter_observable(self.breaks, as_of)
         return observable[-1].resulting_state if observable else StructureState.UNDEFINED
 
 
@@ -559,8 +559,8 @@ class StructureDetector:
 
         full = self.analyse(frame, symbol, timeframe)
         limited = StructureAnalysis(
-            labels=[x for x in full.labels if x.confirmation_timestamp <= as_of],
-            breaks=[b for b in full.breaks if b.confirmation_timestamp <= as_of],
+            labels=filter_observable(full.labels, as_of),
+            breaks=filter_observable(full.breaks, as_of),
             swings_used=full.swings_used,
             swings_filtered_out=full.swings_filtered_out,
         )

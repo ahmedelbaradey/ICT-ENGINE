@@ -188,3 +188,111 @@ class TestEventTypeCoverage:
     def test_direction_neutral_is_a_real_value(self):
         event = make_event(event_type=EventType.DEALING_RANGE, direction=Direction.NEUTRAL)
         assert event.direction is Direction.NEUTRAL
+
+
+class TestTheSingleObservabilityGateEngineWide:
+    """Every detector in the engine must route observability through the contract.
+
+    The R2-04 audit established this rule and fixed ``liquidity.py``; the R2-05.2 audit
+    found ``structure.py`` (3 sites) and ``swings.py`` (1 site) had never been swept.
+    This guard covers **every** module in ``ict_kronos/ict`` so the next one cannot be
+    missed either — five private copies of a rule are five places it can silently drift.
+    """
+
+    #: The one module allowed raw confirmation arithmetic, in two named helpers whose
+    #: question is WINDOWING ("did this confirm inside the leg?"), not observability.
+    OWNERS = {"contract.py", "composites.py"}
+
+    def _modules(self):
+        from pathlib import Path as _P
+
+        return sorted(_P("ict_kronos/ict").glob("*.py"))
+
+    def test_no_detector_hand_rolls_the_observability_comparison(self):
+        offenders = {}
+        for module in self._modules():
+            if module.name in self.OWNERS:
+                continue
+            code = [
+                line.strip()
+                for line in module.read_text(encoding="utf-8").splitlines()
+                if not line.lstrip().startswith("#")
+            ]
+            hits = [
+                line
+                for line in code
+                if "confirmation_timestamp <=" in line
+                or "confirmation_timestamp >=" in line
+                or "confirmation_timestamp <" in line
+            ]
+            if hits:
+                offenders[module.name] = hits
+
+        assert offenders == {}, (
+            "these modules re-implement the observability rule instead of calling the "
+            f"shared gate: {offenders}"
+        )
+
+    def test_no_detector_compares_a_confirmation_against_an_as_of(self):
+        """The tight form: an observability check is confirmation vs a decision time."""
+        offenders = {}
+        for module in self._modules():
+            if module.name in self.OWNERS:
+                continue
+            hits = [
+                line.strip()
+                for line in module.read_text(encoding="utf-8").splitlines()
+                if "confirmation_timestamp" in line
+                and "as_of" in line
+                and "is_observable_at" not in line
+                and not line.lstrip().startswith("#")
+            ]
+            if hits:
+                offenders[module.name] = hits
+
+        assert offenders == {}, f"the observability rule is re-implemented: {offenders}"
+
+    def test_the_gate_is_actually_reachable_from_every_point_in_time_api(self):
+        """Behavioural companion: the R2-02/R2-03 APIs that were fixed still filter."""
+        from datetime import UTC, datetime, timedelta
+
+        from ict_kronos.domain import MarketCandle, Symbol, Timeframe, candles_to_frame
+        from ict_kronos.ict import StructureDetector, SwingDetector
+
+        start = datetime(2024, 3, 8, 9, 0, tzinfo=UTC)
+        prices = [1.0, 1.2, 1.1, 1.4, 1.3, 1.6, 1.2, 1.5, 1.1, 1.7, 1.0, 1.8]
+        frame = candles_to_frame(
+            [
+                MarketCandle(
+                    timestamp=start + timedelta(minutes=5 * i),
+                    symbol=Symbol.EURUSD,
+                    timeframe=Timeframe.M5,
+                    open=p,
+                    high=p + 0.05,
+                    low=p - 0.05,
+                    close=p,
+                    volume=1.0,
+                )
+                for i, p in enumerate(prices)
+            ]
+        )
+        swings = SwingDetector().detect(frame, Symbol.EURUSD, Timeframe.M5)
+        assert swings, "fixture must produce swings for this test to mean anything"
+
+        as_of = swings[0].confirmation_timestamp
+        visible = SwingDetector().observable_at(frame, as_of, Symbol.EURUSD, Timeframe.M5)
+        assert all(s.confirmation_timestamp <= as_of for s in visible)
+        assert len(visible) < len(swings) or len(swings) == 1
+
+        limited = StructureDetector().observable_at(frame, as_of, Symbol.EURUSD, Timeframe.M5)
+        assert all(b.confirmation_timestamp <= as_of for b in limited.breaks)
+
+    def test_a_naive_as_of_is_still_rejected_by_the_fixed_apis(self):
+        """The gate raises ContractViolation, which IS a ValueError — behaviour kept."""
+        from datetime import datetime
+
+        from ict_kronos.ict import ContractViolation, StructureAnalysis
+
+        naive = datetime(2024, 3, 8, 12, 0)  # noqa: DTZ001
+        with pytest.raises((ContractViolation, ValueError), match="timezone-aware"):
+            StructureAnalysis().state_at(naive)
