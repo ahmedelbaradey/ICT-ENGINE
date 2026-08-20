@@ -248,6 +248,38 @@ class StructureDetectionConfig:
 
 
 @dataclass(frozen=True)
+class LiquidityDetectionConfig:
+    """Liquidity parameters (R2-04). See ``docs/ict/liquidity.md``.
+
+    ``day_timezone``/``day_boundary_local`` define the TRADING day, not the UTC
+    calendar day. The default 17:00 America/New_York is the FX/broker day and matches
+    the instrument reopen times observed in the Phase 1.5 data.
+    """
+
+    equal_tolerance_points: float = 1.0
+    equal_max_swing_distance: int = 1
+    sweep_tolerance_points: float = 0.0
+    require_rejection: bool = False
+    approach_tolerance_points: float = 0.0
+    day_timezone: str = "America/New_York"
+    day_boundary_local: str = "17:00"
+    include_swing_levels: bool = True
+
+    @classmethod
+    def from_env(cls) -> LiquidityDetectionConfig:
+        return cls(
+            equal_tolerance_points=_get_float("ICT_LIQUIDITY_EQUAL_TOLERANCE_POINTS", 1.0),
+            equal_max_swing_distance=_get_int("ICT_LIQUIDITY_EQUAL_MAX_SWING_DISTANCE", 1),
+            sweep_tolerance_points=_get_float("ICT_LIQUIDITY_SWEEP_TOLERANCE_POINTS", 0.0),
+            require_rejection=_get_bool("ICT_LIQUIDITY_REQUIRE_REJECTION", False),
+            approach_tolerance_points=_get_float("ICT_LIQUIDITY_APPROACH_TOLERANCE_POINTS", 0.0),
+            day_timezone=os.environ.get("ICT_LIQUIDITY_DAY_TIMEZONE", "America/New_York"),
+            day_boundary_local=os.environ.get("ICT_LIQUIDITY_DAY_BOUNDARY_LOCAL", "17:00"),
+            include_swing_levels=_get_bool("ICT_LIQUIDITY_INCLUDE_SWING_LEVELS", True),
+        )
+
+
+@dataclass(frozen=True)
 class KronosConfig:
     """Phase 5 — devops/opt-in gated. Empty until weights are provisioned."""
 
@@ -327,6 +359,7 @@ class Settings:
     sessions: SessionConfig = field(default_factory=SessionConfig.from_env)
     swings: SwingDetectionConfig = field(default_factory=SwingDetectionConfig.from_env)
     structure: StructureDetectionConfig = field(default_factory=StructureDetectionConfig.from_env)
+    liquidity: LiquidityDetectionConfig = field(default_factory=LiquidityDetectionConfig.from_env)
     kronos: KronosConfig = field(default_factory=KronosConfig.from_env)
     llm: LlmConfig = field(default_factory=LlmConfig.from_env)
     ingest_poller: PollerConfig = field(default_factory=lambda: PollerConfig.for_lane("ingest"))
@@ -341,6 +374,7 @@ class Settings:
             sessions=SessionConfig.from_env(),
             swings=SwingDetectionConfig.from_env(),
             structure=StructureDetectionConfig.from_env(),
+            liquidity=LiquidityDetectionConfig.from_env(),
             kronos=KronosConfig.from_env(),
             llm=LlmConfig.from_env(),
             ingest_poller=PollerConfig.for_lane("ingest"),

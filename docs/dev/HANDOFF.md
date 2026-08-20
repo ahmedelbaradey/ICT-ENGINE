@@ -2,7 +2,7 @@
 
 **Protocol (ported from Learnexia):** read this before starting work; update it before opening your PR, in the same PR. Prune what has gone stale. If it isn't here, assume the next person won't know it.
 
-Last updated: **2026-08-20** — end of R2-03 (StructureDetector).
+Last updated: **2026-08-20** — end of R2-04 (LiquidityDetector).
 
 ---
 
@@ -14,7 +14,7 @@ Last updated: **2026-08-20** — end of R2-03 (StructureDetector).
 | 0.5 — Foundation | ✅ Complete |
 | 1 — Market data layer | ✅ Complete |
 | 1.5 — Real-data proof | ✅ APPROVED |
-| **2 — ICT engine** | 🔵 **In progress — R2-01..R2-03 done; R2-04 next** |
+| **2 — ICT engine** | 🔵 **In progress — R2-01..R2-04 done; R2-05 next** |
 | 3–10 | ⬜ Not started (5 blocked on GPU) |
 
 ### Phase 2 stories
@@ -24,8 +24,8 @@ Last updated: **2026-08-20** — end of R2-03 (StructureDetector).
 | R2-01 SessionDetector | ✅ Done — 136 tests |
 | R2-02 SwingDetector | ✅ Done — 139 tests |
 | R2-03 StructureDetector | ✅ Done — 169 tests |
-| R2-04 LiquidityDetector | ⬜ **Next** |
-| R2-05 FVGDetector | ⬜ |
+| R2-04 LiquidityDetector | ✅ Done — 203 tests |
+| R2-05 FVGDetector | ⬜ **Next** |
 | R2-06 PremiumDiscount | ⬜ |
 | R2-07 ICT feature integration | ⬜ |
 
@@ -49,6 +49,9 @@ Stories in [user-stories/](../../user-stories/README.md), tasks in [tasks/](../.
 11. **`filter_observable()` is the one downstream gate.** Feature assembly (R2-07) must go through it. Do not hand-roll a confirmation filter.
 12. **BOS and MSS are ONE detection distinguished by prior state**, not two algorithms. **CHoCH is a synonym for MSS by default and is not emitted** — see `docs/ict/structure.md` §5. The `DISTINCT_BY_DISPLACEMENT` policy is the only alternative offered, and it is off by default.
 13. **Structure break mode defaults to CLOSE.** In WICK mode the bar that prints a higher swing high necessarily breaks the previous one, so nearly every HH also emits a BOS.
+14. **A liquidity LEVEL is not a liquidity SWEEP** — separate types, separate timestamps, never collapsed.
+15. **The trading day is 17:00 America/New_York**, not the UTC calendar day. It matches the observed instrument reopen times and is expressed as a `SessionDefinition` so DST is automatic. The trading week is the Sunday…Thursday day windows.
+16. **Liquidity side is fixed at creation and never flips** as price moves. Only the status changes.
 
 ---
 
@@ -159,9 +162,17 @@ Full results: [DATA_PROOF.md](../financial-ai/DATA_PROOF.md). A re-run against t
 - **Equal swing levels get NO HH/HL/LH/LL label** but still become the active reference. Equal highs are liquidity (R2-04), not structure; labelling them here would pre-empt that story.
 - **Insufficient history for displacement ⇒ CHoCH** under the distinct policy. Conservative by design: without evidence of displacement we do not claim the stronger label.
 
+## Gotchas found in R2-04
+
+- **The Friday-anchored day window must NOT be in the trading week.** It runs Fri 17:00 -> Sat 17:00, starting exactly when the week ends, so folding it in let a "week high" post-date the week's close. Real FX data hides this (no bars there); synthetic 24/7 data exposed it. Guarded by `_in_trading_week()`.
+- **`require_rejection` was removed deliberately.** It created a state where a level was consumed but no event explained it. Every penetration emits a sweep carrying `closed_beyond` / `is_rejection`; filtering belongs downstream.
+- **A wick through a level is a SWEEP, not a BOS.** R2-03 defaults to CLOSE breaks precisely so the two do not collide. Tested on real data.
+- **One bar can sweep many levels** — 11 in one real EURUSD bar. Each emits its own sweep event; identities are never collapsed even at identical prices.
+- **Approach tracking is off by default** (`approach_tolerance_points=None`). Three states carry the meaning; APPROACHED is an optional refinement.
+
 ## Open items for Phase 2
 
-1. **R2-04 LiquidityDetector is next.** It needs R2-01 sessions (session H/L) and R2-02 swings (equal highs/lows), and it owns the equal-level concept R2-03 deliberately left unlabelled.
+1. **R2-05 FVGDetector is next.** Its whole point is the confirmation-timestamp bug found in ForexQuant's implementation — `formation_timestamp` vs `confirmation_timestamp` at candle 3's CLOSE.
 2. **Swings are unranked.** Many minor pivots at `left=right=2`. `strength` (prominence) is available for filtering, but R2-03/R2-07 will likely need a significance ranking.
 3. **No holiday calendar yet.** A bank holiday looks like any other empty window: correctly no occurrence, but the detector cannot say *why*. R2-04 ("previous day") likely forces the issue.
 4. **Multi-year data availability is UNCONFIRMED.** Only 4 days are proven. Whether Dukascopy has complete 2021-2025 coverage for both symbols has not been checked, so the Master Plan §20 split is unvalidated. Run a metered background backfill early.
