@@ -19,5 +19,13 @@ Per-story task breakdown. Convention ported from Learnexia (see [docs/dev/WORK_I
 | [R2-04](Phase-2-ICT-Engine/R2-04-TASKS.md) | Liquidity | ✅ Done |
 | [R2-05](Phase-2-ICT-Engine/R2-05-TASKS.md) | Fair Value Gap | ✅ Done |
 | [R2-05.1](Phase-2-ICT-Engine/R2-05.1-TASKS.md) | True Daily Open | ✅ Done |
+| [R2-05.2](Phase-2-ICT-Engine/R2-05.2-TASKS.md) | IFVG | 📋 Spec written |
+| [R2-05.3](Phase-2-ICT-Engine/R2-05.3-TASKS.md) | Order Block | 📋 Spec written |
+| [R2-05.4](Phase-2-ICT-Engine/R2-05.4-TASKS.md) | Breaker Block | 📋 Spec written |
+| [R2-05.5](Phase-2-ICT-Engine/R2-05.5-TASKS.md) | Balanced Price Range | 📋 Spec written |
+| [R2-05.6](Phase-2-ICT-Engine/R2-05.6-TASKS.md) | RDRB | 📋 Spec written |
+| [R2-05.7](Phase-2-ICT-Engine/R2-05.7-TASKS.md) | CISD | 📋 Spec written |
+| [R2-05.8](Phase-2-ICT-Engine/R2-05.8-TASKS.md) | CHoCH revision | 📋 Spec written |
+| [R2-05.9](Phase-2-ICT-Engine/R2-05.9-TASKS.md) | Unicorn Model | 📋 Spec written |
 | [R2-06](Phase-2-ICT-Engine/R2-06-TASKS.md) | Premium / Discount | ⬜ Not started |
 | [R2-07](Phase-2-ICT-Engine/R2-07-TASKS.md) | ICT feature integration | ⬜ Not started |

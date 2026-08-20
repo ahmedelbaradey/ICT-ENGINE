@@ -22,9 +22,17 @@ Deterministic ICT market-structure detection. **No LLM decides whether a pattern
 | [R2-04](Phase-2-ICT-Engine/R2-04-liquidity.md) | Liquidity — equal highs/lows, PDH/PDL, PWH/PWL, session H/L, sweeps | R2-01, R2-02 | ✅ Done |
 | [R2-05](Phase-2-ICT-Engine/R2-05-fair-value-gap.md) | Fair Value Gaps — size, age, fill %, invalidation | R2-01 | ✅ Done |
 | [R2-05.1](Phase-2-ICT-Engine/R2-05.1-true-daily-open.md) | True Daily Open — 00:00 America/New_York | R2-01 | ✅ Done |
-| [R2-06](Phase-2-ICT-Engine/R2-06-premium-discount.md) | Premium / Discount — dealing range, equilibrium, position | R2-02 | ⬜ **Next** |
-| [R2-07](Phase-2-ICT-Engine/R2-07-ict-feature-integration.md) | `ICTMarketState` / `ICTFeatureVector` integration | R2-01…R2-06 | ⬜ Not started |
+| [R2-05.2](Phase-2-ICT-Engine/R2-05.2-inversion-fair-value-gap.md) | IFVG — inversion of a confirmed FVG | R2-05 | 📋 Spec written |
+| [R2-05.3](Phase-2-ICT-Engine/R2-05.3-order-block.md) | Order Block — pattern + qualifying event | R2-03, R2-04, R2-05 | 📋 Spec written |
+| [R2-05.4](Phase-2-ICT-Engine/R2-05.4-breaker-block.md) | Breaker Block — a failed Order Block | R2-05.3 | 📋 Spec written |
+| [R2-05.5](Phase-2-ICT-Engine/R2-05.5-balanced-price-range.md) | BPR — intersection of opposite FVGs | R2-05 | 📋 Spec written |
+| [R2-05.6](Phase-2-ICT-Engine/R2-05.6-rdrb.md) | RDRB — redelivered rebalanced price range | — | 📋 Spec written ⚠ decision required |
+| [R2-05.7](Phase-2-ICT-Engine/R2-05.7-cisd.md) | CISD — change in state of delivery | — | 📋 Spec written |
+| [R2-05.8](Phase-2-ICT-Engine/R2-05.8-choch-revision.md) | CHoCH semantics revision | R2-03, R2-05.7 | 📋 Spec written |
+| [R2-05.9](Phase-2-ICT-Engine/R2-05.9-unicorn-model.md) | Unicorn — Breaker ∩ FVG | R2-05.4, R2-05 | 📋 Spec written |
+| [R2-06](Phase-2-ICT-Engine/R2-06-premium-discount.md) | Premium / Discount — dealing range, equilibrium, position | R2-02 | ⛔ Deferred until R2-05.9 |
+| [R2-07](Phase-2-ICT-Engine/R2-07-ict-feature-integration.md) | `ICTMarketState` / `ICTFeatureVector` integration | R2-01…R2-06 | ⛔ Deferred |
 
 ## Out of scope for Phase 2
 
-Order Blocks, Breaker/Mitigation blocks, IFVG, BPR, RDRB, volume imbalance, liquidity voids (Master Plan §8 — deferred). Kronos, ML training, backtesting and execution are later phases.
+Mitigation/Rejection blocks, volume imbalance, liquidity voids, SMT, OTE (deferred). Order Blocks, Breakers, IFVG, BPR, RDRB, CISD and Unicorn were originally deferred here and are now specified as R2-05.2…R2-05.9 — see [R2-05x-CONCEPT-MAP.md](../docs/ict/R2-05x-CONCEPT-MAP.md). Kronos, ML training, backtesting and execution are later phases.
