@@ -2,7 +2,7 @@
 
 **Protocol (ported from Learnexia):** read this before starting work; update it before opening your PR, in the same PR. Prune what has gone stale. If it isn't here, assume the next person won't know it.
 
-Last updated: **2026-08-20** — end of R2-07. **Phase 2 is COMPLETE**: R2-01 … R2-07, detectors plus the point-in-time state and feature layers.
+Last updated: **2026-08-20** — end of R2-08. **Phase 2 is COMPLETE** (R2-01 … R2-07). **R2-08 — the prediction target and dataset engine — is ready for review**: `ict_kronos/features/`, the hard gate before any model training.
 
 ---
 
@@ -15,7 +15,8 @@ Last updated: **2026-08-20** — end of R2-07. **Phase 2 is COMPLETE**: R2-01 �
 | 1 — Market data layer | ✅ Complete |
 | 1.5 — Real-data proof | ✅ APPROVED |
 | **2 — ICT engine** | ✅ **Complete — R2-01..R2-07** |
-| 3–10 | ⬜ Not started (5 blocked on GPU) |
+| **3 — Feature dataset** | 🟨 **R2-08 ready for review** — targets, dataset rows, chronological splits, quality audit |
+| 4–10 | ⬜ Not started (5 blocked on GPU) |
 
 ### Phase 2 stories
 
@@ -37,6 +38,7 @@ Last updated: **2026-08-20** — end of R2-07. **Phase 2 is COMPLETE**: R2-01 �
 | R2-05.9 Unicorn | ✅ Done — Breaker ∩ same-polarity FVG, 56 tests |
 | R2-06 PremiumDiscount | ✅ Done — dealing range + premium/discount, 310 tests |
 | R2-07 ICT feature integration | ✅ Done — ICTMarketState + ICTFeatureVector (56 features) |
+| R2-08 Target & dataset engine | 🟨 Ready for review — `ict_kronos/features/`, the second half of the temporal contract |
 
 Stories in [user-stories/](../../user-stories/README.md), tasks in [tasks/](../../tasks/README.md).
 **Strict order** — one story completed and validated before the next begins.
@@ -244,6 +246,42 @@ Full results: [DATA_PROOF.md](../financial-ai/DATA_PROOF.md). A re-run against t
 - **The `require_structure_break` default makes the Unicorn's inputs sparse.** With the
   gate ON (the default) EURUSD 1H yields 3 Unicorns and XAUUSD 1H yields 0. The
   real-data suite runs the ungated Breaker so the geometry is exercised everywhere.
+
+## Gotchas found in R2-08 (targets + dataset)
+
+- **The temporal boundary has to be a MODULE boundary, not a convention.** `FEATURES(T)`
+  may only see up to `T`; `TARGET(T)` must see past it. Written as two functions in one
+  file, the next edit merges them by accident. `ict_kronos/features/targets.py` imports
+  nothing from the feature layer, the feature layer imports nothing from it, and guard
+  tests assert both directions. `DatasetBuilder` is the only place they meet.
+- **A leakage test with no control proves nothing.** "Features unchanged when the future
+  is mutated" passes just as happily against a layer that computes nothing. Every
+  inertness assertion is paired with a history mutation that MUST change the features,
+  and with a target that MUST move.
+- **The exact-threshold rule was quietly false before rounding.** `(1.0002 - 1.0) / 1e-5`
+  is `19.999999999997797`, so a move of exactly 20 points classified NEUTRAL under a
+  20-point threshold — the one place the `>=` rule is stated is the one place it broke.
+  Points are rounded to 6 decimals (a million times finer than any instrument can
+  express) before comparison.
+- **20 points on EURUSD is 0.0002, not 0.002.** Half the first TP/SL fixtures were off by
+  a decade and produced same-bar double touches instead of the clean races they were
+  meant to describe. When a barrier test fails, suspect the fixture before the engine.
+- **Same-bar TP + SL is genuinely unanswerable.** An OHLC bar records four prices and no
+  sequence. "Use the close to break the tie" is a fabrication that a model then learns
+  as if it were the market. It is `UNRESOLVED`, with the offending bar's timestamp kept
+  so the ambiguity is countable.
+- **The split embargo cannot be left to the caller.** A split with `embargo_bars=0` beside
+  an 8-bar target leaks the next period into training with no error and no NaN — only a
+  validation score that is too good. `DatasetSpec` refuses the combination and names the
+  value to use, rather than silently widening it.
+- **Building rows for every instant of a real 1m frame is not a test, it is a timeout.**
+  The real-data suite caches one dataset AND its engine per (symbol, timeframe); prefix
+  replay, which is quadratic, runs on 1H/4H only. Feature-side prefix equivalence at 15m
+  and finer is R2-07's guarantee and is covered there.
+- **Resolve a target as soon as the answer exists.** A TP/SL race decided at bar `i+2`
+  is resolved even if the 16-bar horizon runs off the end of the data — bars that do not
+  exist cannot change an outcome that already happened. Requiring the full horizon would
+  have thrown away correct labels.
 
 ## Gotchas found in R2-07 (state + feature vector)
 

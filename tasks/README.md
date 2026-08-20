@@ -29,3 +29,4 @@ Per-story task breakdown. Convention ported from Learnexia (see [docs/dev/WORK_I
 | [R2-05.9](Phase-2-ICT-Engine/R2-05.9-TASKS.md) | Unicorn Model | ✅ Done |
 | [R2-06](Phase-2-ICT-Engine/R2-06-TASKS.md) | Premium / Discount | ✅ Done |
 | [R2-07](Phase-2-ICT-Engine/R2-07-TASKS.md) | ICT feature integration | ✅ Done |
+| [R2-08](Phase-2-ICT-Engine/R2-08-TASKS.md) | Prediction target & dataset engine | 🟨 Ready for review |
