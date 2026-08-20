@@ -2,7 +2,7 @@
 
 **Protocol (ported from Learnexia):** read this before starting work; update it before opening your PR, in the same PR. Prune what has gone stale. If it isn't here, assume the next person won't know it.
 
-Last updated: **2026-08-20** — end of R2-04 (LiquidityDetector).
+Last updated: **2026-08-20** — end of R2-05 (FVGDetector).
 
 ---
 
@@ -14,7 +14,7 @@ Last updated: **2026-08-20** — end of R2-04 (LiquidityDetector).
 | 0.5 — Foundation | ✅ Complete |
 | 1 — Market data layer | ✅ Complete |
 | 1.5 — Real-data proof | ✅ APPROVED |
-| **2 — ICT engine** | 🔵 **In progress — R2-01..R2-04 done; R2-05 next** |
+| **2 — ICT engine** | 🔵 **In progress — R2-01..R2-05 done; R2-06 next** |
 | 3–10 | ⬜ Not started (5 blocked on GPU) |
 
 ### Phase 2 stories
@@ -25,8 +25,8 @@ Last updated: **2026-08-20** — end of R2-04 (LiquidityDetector).
 | R2-02 SwingDetector | ✅ Done — 139 tests |
 | R2-03 StructureDetector | ✅ Done — 169 tests |
 | R2-04 LiquidityDetector | ✅ Done — 210 tests |
-| R2-05 FVGDetector | ⬜ **Next** |
-| R2-06 PremiumDiscount | ⬜ |
+| R2-05 FVGDetector | ✅ Done — 225 tests |
+| R2-06 PremiumDiscount | ⬜ **Next** |
 | R2-07 ICT feature integration | ⬜ |
 
 Stories in [user-stories/](../../user-stories/README.md), tasks in [tasks/](../../tasks/README.md).
@@ -52,6 +52,8 @@ Stories in [user-stories/](../../user-stories/README.md), tasks in [tasks/](../.
 14. **A liquidity LEVEL is not a liquidity SWEEP** — separate types, separate timestamps, never collapsed.
 15. **The trading day is 17:00 America/New_York**, not the UTC calendar day. It matches the observed instrument reopen times and is expressed as a `SessionDefinition` so DST is automatic. The trading week is the Sunday…Thursday day windows.
 16. **Liquidity side is fixed at creation and never flips** as price moves. Only the status changes.
+17. **FVG confirmation is candle 3's CLOSE, never its open.** The condition reads C3's low/high, which is not final until close. `formation_timestamp` and `confirmation_timestamp` are two required fields — the legacy ForexQuant detector has one, set to C3's open, and is a full bar early.
+18. **FVG candles must be CONTIGUOUS in time** (`require_contiguous_bars=True`). Across a weekend or data gap the price jump would manufacture a large, entirely fictitious imbalance.
 
 ---
 
@@ -170,9 +172,17 @@ Full results: [DATA_PROOF.md](../financial-ai/DATA_PROOF.md). A re-run against t
 - **One bar can sweep many levels** — 11 in one real EURUSD bar. Each emits its own sweep event; identities are never collapsed even at identical prices.
 - **Approach tracking is off by default** (`approach_tolerance_points=None`). Three states carry the meaning; APPROACHED is an optional refinement.
 
+## Gotchas found in R2-05
+
+- **The legacy FVG bug, precisely:** `StartTime = candle3.Timestamp` (the OPEN) while the condition reads `candle3.Low`. One field, one bar early. Our two-field design plus the contract's `confirmation >= event` invariant make it unrepresentable — proved by `TestTheLegacyOffByOne` (5 tests), which runs the legacy filter beside ours.
+- **Contiguity is load-bearing, not decoration.** Without it every data gap manufactures a phantom FVG. On real EURUSD 5m the guard suppresses several zones, each verified to span an actual time gap.
+- **This weekend leaves no naive phantom.** EURUSD reopened within a few points of the Friday close, so *that* boundary produces no gap either way; the phantoms appear at the shorter intra-week data gaps. Assert the general claim, not the weekend-specific one.
+- **A genuine absence of FVGs is a valid result.** XAUUSD's nine 4H bars overlap throughout and yield zero zones. Do not assert non-empty on sparse timeframes.
+- **C3 cannot fill its own gap** — it defines the zone. Filling starts from the next bar.
+
 ## Open items for Phase 2
 
-1. **R2-05 FVGDetector is next.** Its whole point is the confirmation-timestamp bug found in ForexQuant's implementation — `formation_timestamp` vs `confirmation_timestamp` at candle 3's CLOSE.
+1. **R2-06 PremiumDiscount is next.** All the risk is in which dealing range is chosen, so that must be configuration with a documented default.
 2. **Swings are unranked.** Many minor pivots at `left=right=2`. `strength` (prominence) is available for filtering, but R2-03/R2-07 will likely need a significance ranking.
 3. **No holiday calendar yet.** A bank holiday looks like any other empty window: correctly no occurrence, but the detector cannot say *why*. R2-04 ("previous day") likely forces the issue.
 4. **Multi-year data availability is UNCONFIRMED.** Only 4 days are proven. Whether Dukascopy has complete 2021-2025 coverage for both symbols has not been checked, so the Master Plan §20 split is unvalidated. Run a metered background backfill early.

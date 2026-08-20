@@ -280,6 +280,37 @@ class LiquidityDetectionConfig:
 
 
 @dataclass(frozen=True)
+class FvgDetectionConfig:
+    """Fair Value Gap parameters (R2-05). See ``docs/ict/fvg.md``.
+
+    ``require_contiguous_bars`` defaults to TRUE: across a weekend or data gap the
+    price jump would otherwise manufacture a large, entirely fictitious imbalance.
+    """
+
+    min_gap_points: float = 0.0
+    measure: str = "wick"
+    require_contiguous_bars: bool = True
+    partial_fill_threshold: float = 0.0
+    full_fill_threshold: float = 1.0
+    require_displacement: bool = False
+    displacement_lookback: int = 20
+    displacement_factor: float = 1.5
+
+    @classmethod
+    def from_env(cls) -> FvgDetectionConfig:
+        return cls(
+            min_gap_points=_get_float("ICT_FVG_MIN_GAP_POINTS", 0.0),
+            measure=os.environ.get("ICT_FVG_MEASURE", "wick").strip().lower(),
+            require_contiguous_bars=_get_bool("ICT_FVG_REQUIRE_CONTIGUOUS_BARS", True),
+            partial_fill_threshold=_get_float("ICT_FVG_PARTIAL_FILL_THRESHOLD", 0.0),
+            full_fill_threshold=_get_float("ICT_FVG_FULL_FILL_THRESHOLD", 1.0),
+            require_displacement=_get_bool("ICT_FVG_REQUIRE_DISPLACEMENT", False),
+            displacement_lookback=_get_int("ICT_FVG_DISPLACEMENT_LOOKBACK", 20),
+            displacement_factor=_get_float("ICT_FVG_DISPLACEMENT_FACTOR", 1.5),
+        )
+
+
+@dataclass(frozen=True)
 class KronosConfig:
     """Phase 5 — devops/opt-in gated. Empty until weights are provisioned."""
 
@@ -360,6 +391,7 @@ class Settings:
     swings: SwingDetectionConfig = field(default_factory=SwingDetectionConfig.from_env)
     structure: StructureDetectionConfig = field(default_factory=StructureDetectionConfig.from_env)
     liquidity: LiquidityDetectionConfig = field(default_factory=LiquidityDetectionConfig.from_env)
+    fvg: FvgDetectionConfig = field(default_factory=FvgDetectionConfig.from_env)
     kronos: KronosConfig = field(default_factory=KronosConfig.from_env)
     llm: LlmConfig = field(default_factory=LlmConfig.from_env)
     ingest_poller: PollerConfig = field(default_factory=lambda: PollerConfig.for_lane("ingest"))
@@ -375,6 +407,7 @@ class Settings:
             swings=SwingDetectionConfig.from_env(),
             structure=StructureDetectionConfig.from_env(),
             liquidity=LiquidityDetectionConfig.from_env(),
+            fvg=FvgDetectionConfig.from_env(),
             kronos=KronosConfig.from_env(),
             llm=LlmConfig.from_env(),
             ingest_poller=PollerConfig.for_lane("ingest"),

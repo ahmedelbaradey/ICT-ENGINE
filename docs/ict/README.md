@@ -14,8 +14,8 @@ adopted silently.
 | SwingDetector | [R2-02](../../user-stories/Phase-2-ICT-Engine/R2-02-swing-detection.md) | [swings.md](swings.md) | ✅ Done |
 | StructureDetector | [R2-03](../../user-stories/Phase-2-ICT-Engine/R2-03-market-structure.md) | [structure.md](structure.md) | ✅ Done |
 | LiquidityDetector | [R2-04](../../user-stories/Phase-2-ICT-Engine/R2-04-liquidity.md) | [liquidity.md](liquidity.md) | ✅ Done |
-| FVGDetector | R2-05 | — | ⬜ **Next** |
-| PremiumDiscountCalculator | R2-06 | — | ⬜ Not started |
+| FVGDetector | [R2-05](../../user-stories/Phase-2-ICT-Engine/R2-05-fair-value-gap.md) | [fvg.md](fvg.md) | ✅ Done |
+| PremiumDiscountCalculator | R2-06 | — | ⬜ **Next** |
 | ICTFeatureVector | R2-07 | — | ⬜ Not started |
 
 ## The shared contract

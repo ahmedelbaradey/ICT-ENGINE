@@ -15,6 +15,16 @@ from .contract import (
     events_to_frame,
     filter_observable,
 )
+from .fvg import (
+    FvgAnalysis,
+    FvgConfig,
+    FvgDetector,
+    FvgFillUpdate,
+    FvgStatus,
+    FvgZone,
+    GapMeasure,
+    reference_zones,
+)
 from .liquidity import (
     LiquidityAnalysis,
     LiquidityConfig,
@@ -65,6 +75,13 @@ __all__ = [
     "LiquiditySweep",
     "LiquidityType",
     "Direction",
+    "FvgAnalysis",
+    "FvgConfig",
+    "FvgDetector",
+    "FvgFillUpdate",
+    "FvgStatus",
+    "FvgZone",
+    "GapMeasure",
     "EventStatus",
     "EventType",
     "IctEvent",
@@ -90,6 +107,7 @@ __all__ = [
     "filter_observable",
     "load_definitions",
     "reference_pivots",
+    "reference_zones",
     "resolve_window",
     "resolve_windows",
 ]
