@@ -156,9 +156,23 @@ class TestEventTypeCoverage:
             "liquidity_sweep",
             "fvg_bullish",
             "fvg_bearish",
+            "true_daily_open",
             "dealing_range",
         }
         assert {e.value for e in EventType} == expected
+
+    def test_the_true_daily_open_is_not_a_trading_day_boundary(self):
+        """R2-05.1 (00:00 NY) and R2-04's day rollover (17:00 NY) are distinct concepts.
+
+        Declared side by side here because collapsing them is the likely future
+        mistake: both are "daily", and only one is a price level.
+        """
+        assert EventType.TRUE_DAILY_OPEN not in {
+            EventType.PREVIOUS_DAY_HIGH,
+            EventType.PREVIOUS_DAY_LOW,
+            EventType.SESSION_OPEN,
+        }
+        assert EventType.TRUE_DAILY_OPEN.value == "true_daily_open"
 
     def test_direction_neutral_is_a_real_value(self):
         event = make_event(event_type=EventType.DEALING_RANGE, direction=Direction.NEUTRAL)

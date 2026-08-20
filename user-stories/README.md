@@ -21,6 +21,7 @@ Deterministic ICT market-structure detection. **No LLM decides whether a pattern
 | [R2-03](Phase-2-ICT-Engine/R2-03-market-structure.md) | Market structure — HH/HL/LH/LL, BOS, MSS, CHoCH | R2-02 | ✅ Done |
 | [R2-04](Phase-2-ICT-Engine/R2-04-liquidity.md) | Liquidity — equal highs/lows, PDH/PDL, PWH/PWL, session H/L, sweeps | R2-01, R2-02 | ✅ Done |
 | [R2-05](Phase-2-ICT-Engine/R2-05-fair-value-gap.md) | Fair Value Gaps — size, age, fill %, invalidation | R2-01 | ✅ Done |
+| [R2-05.1](Phase-2-ICT-Engine/R2-05.1-true-daily-open.md) | True Daily Open — 00:00 America/New_York | R2-01 | ✅ Done |
 | [R2-06](Phase-2-ICT-Engine/R2-06-premium-discount.md) | Premium / Discount — dealing range, equilibrium, position | R2-02 | ⬜ **Next** |
 | [R2-07](Phase-2-ICT-Engine/R2-07-ict-feature-integration.md) | `ICTMarketState` / `ICTFeatureVector` integration | R2-01…R2-06 | ⬜ Not started |
 

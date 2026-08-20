@@ -311,6 +311,30 @@ class FvgDetectionConfig:
 
 
 @dataclass(frozen=True)
+class TrueDailyOpenConfig:
+    """True Daily Open boundary (R2-05.1). See ``docs/ict/true_daily_open.md``.
+
+    **The defaults ARE the ICT definition** — 00:00 America/New_York — so these are
+    not tuning knobs; changing them changes what the level means. They are
+    configuration rather than literals in logic per CLAUDE.md rule 4.
+
+    Deliberately SEPARATE from ``LiquidityDetectionConfig.day_boundary_local``
+    (17:00), which delimits the trading day for PDH/PDL. Two different daily
+    concepts, two independent settings, no shared default.
+    """
+
+    timezone: str = "America/New_York"
+    open_local: str = "00:00"
+
+    @classmethod
+    def from_env(cls) -> TrueDailyOpenConfig:
+        return cls(
+            timezone=os.environ.get("ICT_TRUE_DAILY_OPEN_TIMEZONE", "America/New_York"),
+            open_local=os.environ.get("ICT_TRUE_DAILY_OPEN_LOCAL", "00:00"),
+        )
+
+
+@dataclass(frozen=True)
 class KronosConfig:
     """Phase 5 — devops/opt-in gated. Empty until weights are provisioned."""
 
@@ -392,6 +416,7 @@ class Settings:
     structure: StructureDetectionConfig = field(default_factory=StructureDetectionConfig.from_env)
     liquidity: LiquidityDetectionConfig = field(default_factory=LiquidityDetectionConfig.from_env)
     fvg: FvgDetectionConfig = field(default_factory=FvgDetectionConfig.from_env)
+    true_daily_open: TrueDailyOpenConfig = field(default_factory=TrueDailyOpenConfig.from_env)
     kronos: KronosConfig = field(default_factory=KronosConfig.from_env)
     llm: LlmConfig = field(default_factory=LlmConfig.from_env)
     ingest_poller: PollerConfig = field(default_factory=lambda: PollerConfig.for_lane("ingest"))
@@ -408,6 +433,7 @@ class Settings:
             structure=StructureDetectionConfig.from_env(),
             liquidity=LiquidityDetectionConfig.from_env(),
             fvg=FvgDetectionConfig.from_env(),
+            true_daily_open=TrueDailyOpenConfig.from_env(),
             kronos=KronosConfig.from_env(),
             llm=LlmConfig.from_env(),
             ingest_poller=PollerConfig.for_lane("ingest"),

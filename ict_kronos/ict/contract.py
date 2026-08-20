@@ -20,7 +20,14 @@ Session high         the bar that set the high       the session's end
 FVG                  candle 3's open                 candle 3's ``close_time``
 BOS / MSS            the breaking bar's open         the breaking bar's ``close_time``
 Liquidity sweep      the sweeping bar's open         the sweeping bar's ``close_time``
+True daily open      the 00:00 NY boundary bar       the SAME instant
 ===================  ==============================  ===============================
+
+The last row is the sole zero-lag case in Phase 2, and it is correct rather than
+suspicious: it reads a bar's ``open``, which is fixed at the bar's first print and can
+never be revised by what the bar does afterwards. Waiting for its close would be the
+*opposite* error — publishing known information a bar late. See
+``docs/ict/true_daily_open.md`` §4.
 
 Collapsing these two into one field is the single most common way ICT research
 leaks the future. `ForexQuant`'s FVG detector did exactly that, was "fixed" once,
@@ -79,6 +86,12 @@ class EventType(StrEnum):
     # --- R2-05 fair value gaps ---------------------------------------------
     FVG_BULLISH = "fvg_bullish"
     FVG_BEARISH = "fvg_bearish"
+
+    # --- R2-05.1 true daily open -------------------------------------------
+    #: 00:00 America/New_York. Emphatically NOT the 17:00 New York trading-day
+    #: boundary that R2-04 uses for PREVIOUS_DAY_*; the two are different concepts
+    #: that happen to both be daily. See ``docs/ict/true_daily_open.md`` §1.
+    TRUE_DAILY_OPEN = "true_daily_open"
 
     # --- R2-06 premium / discount ------------------------------------------
     DEALING_RANGE = "dealing_range"

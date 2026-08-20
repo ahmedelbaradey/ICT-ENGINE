@@ -18,5 +18,6 @@ Per-story task breakdown. Convention ported from Learnexia (see [docs/dev/WORK_I
 | [R2-03](Phase-2-ICT-Engine/R2-03-TASKS.md) | Market structure | ✅ Done |
 | [R2-04](Phase-2-ICT-Engine/R2-04-TASKS.md) | Liquidity | ✅ Done |
 | [R2-05](Phase-2-ICT-Engine/R2-05-TASKS.md) | Fair Value Gap | ✅ Done |
+| [R2-05.1](Phase-2-ICT-Engine/R2-05.1-TASKS.md) | True Daily Open | ✅ Done |
 | [R2-06](Phase-2-ICT-Engine/R2-06-TASKS.md) | Premium / Discount | ⬜ Not started |
 | [R2-07](Phase-2-ICT-Engine/R2-07-TASKS.md) | ICT feature integration | ⬜ Not started |

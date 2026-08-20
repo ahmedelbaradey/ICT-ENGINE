@@ -2,7 +2,7 @@
 
 **Protocol (ported from Learnexia):** read this before starting work; update it before opening your PR, in the same PR. Prune what has gone stale. If it isn't here, assume the next person won't know it.
 
-Last updated: **2026-08-20** — end of R2-05 (FVGDetector).
+Last updated: **2026-08-20** — end of R2-05.1 (TrueDailyOpen).
 
 ---
 
@@ -14,7 +14,7 @@ Last updated: **2026-08-20** — end of R2-05 (FVGDetector).
 | 0.5 — Foundation | ✅ Complete |
 | 1 — Market data layer | ✅ Complete |
 | 1.5 — Real-data proof | ✅ APPROVED |
-| **2 — ICT engine** | 🔵 **In progress — R2-01..R2-05 done; R2-06 next** |
+| **2 — ICT engine** | 🔵 **In progress — R2-01..R2-05.1 done; R2-06 next** |
 | 3–10 | ⬜ Not started (5 blocked on GPU) |
 
 ### Phase 2 stories
@@ -26,6 +26,7 @@ Last updated: **2026-08-20** — end of R2-05 (FVGDetector).
 | R2-03 StructureDetector | ✅ Done — 169 tests |
 | R2-04 LiquidityDetector | ✅ Done — 210 tests |
 | R2-05 FVGDetector | ✅ Done — 225 tests |
+| R2-05.1 TrueDailyOpen | ✅ Done — 250 tests |
 | R2-06 PremiumDiscount | ⬜ **Next** |
 | R2-07 ICT feature integration | ⬜ |
 
@@ -54,6 +55,8 @@ Stories in [user-stories/](../../user-stories/README.md), tasks in [tasks/](../.
 16. **Liquidity side is fixed at creation and never flips** as price moves. Only the status changes.
 17. **FVG confirmation is candle 3's CLOSE, never its open.** The condition reads C3's low/high, which is not final until close. `formation_timestamp` and `confirmation_timestamp` are two required fields — the legacy ForexQuant detector has one, set to C3's open, and is a full bar early.
 18. **FVG candles must be CONTIGUOUS in time** (`require_contiguous_bars=True`). Across a weekend or data gap the price jump would manufacture a large, entirely fictitious imbalance.
+19. **True Daily Open (00:00 NY) and the trading-day boundary (17:00 NY) are DIFFERENT CONCEPTS.** One is a price level, the other a period delimiter, and they disagree about which date an instant belongs to between 17:00 and midnight. R2-05.1 changed nothing about R2-04's 17:00 logic and they have no shared default.
+20. **True Daily Open confirms with ZERO lag, and that is correct.** It reads a bar's `open`, which is fixed at the bar's first print — unlike every other Phase 2 detector, which reads a price that is not final until the bar closes. Waiting for the close would publish known information a bar late.
 
 ---
 
@@ -179,6 +182,14 @@ Full results: [DATA_PROOF.md](../financial-ai/DATA_PROOF.md). A re-run against t
 - **This weekend leaves no naive phantom.** EURUSD reopened within a few points of the Friday close, so *that* boundary produces no gap either way; the phantoms appear at the shorter intra-week data gaps. Assert the general claim, not the weekend-specific one.
 - **A genuine absence of FVGs is a valid result.** XAUUSD's nine 4H bars overlap throughout and yield zero zones. Do not assert non-empty on sparse timeframes.
 - **C3 cannot fill its own gap** — it defines the zone. Filling starts from the next bar.
+
+## Gotchas found in R2-05.1
+
+- **Never assert a constant UTC hour for a local-time boundary.** `00:00 NY` is `05:00Z` under EST and `04:00Z` under EDT. An assertion on the UTC hour passes for eight months a year and encodes exactly the bug the local-time definition prevents. The invariant is `local_time().time() == 00:00`.
+- **Landing on the timeframe grid is necessary but NOT sufficient.** The bar must also survive the resampler. `2024-03-11 04:00Z` is a valid 4H grid point for both instruments, but EURUSD is missing one of the sixty 1m bars in that hour, so `require_complete=True` drops the 1H and 4H bars upstream and no level follows. XAUUSD, with all sixty, produces one. Same rule, one layer earlier.
+- **4H under EST can never carry a True Daily Open** — 05:00 is not on the 00/04/08/12/16/20 grid — and 1D never can, being anchored to UTC midnight.
+- **`latest_at` means "most recent", not "today's".** On a date with no boundary bar it returns the previous date's level, correctly labelled with its own `trading_date`. Detection carries nothing forward; the query is a convenience over what was found, and the caller must check the date.
+- **The Phase 1.5 window happens to contain both DST cases and a weekend**, so the spring transition and closure behaviour are validated on real bars. The autumn transition has no real-data coverage and is synthetic only.
 
 ## Open items for Phase 2
 
