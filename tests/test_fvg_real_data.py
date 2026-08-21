@@ -326,7 +326,22 @@ class TestRealDataComposition:
 class TestUnvalidatedTimeframes:
     """Records the dataset limit explicitly rather than leaving it implicit."""
 
-    def test_daily_resamples_to_too_few_bars_in_this_window(self, symbol):
+    def test_daily_is_now_representable_and_is_validated_elsewhere(self, symbol):
+        """This tripwire fired, and it was right to.
+
+        It previously asserted the four-day window yields fewer than three daily bars,
+        with the message "1D validation is newly possible and should be added". Under
+        the old completeness rule it yielded **zero**: a Daily bar demanded 1440 of 1440
+        one-minute bars, which no real market delivers. R2-08.2 replaced that with
+        boundary-only rejection (``docs/features/data_coverage.md``), and the window now
+        yields 3 daily bars for EURUSD and 2 for XAUUSD.
+
+        So the tripwire's own instruction is honoured rather than its assertion
+        preserved: 1D **is** now validated, on six months of provider-native daily
+        candles, in ``tests/test_production_real_month.py`` and the production audit.
+        What remains true — and is what this test now pins — is that a four-day window
+        is far too short to validate 1D *here*.
+        """
         store = ParquetCandleStore(DATA_ROOT)
         base = store.read(
             symbol, Timeframe.M1, start=pd.Timestamp(WINDOW_START), end=pd.Timestamp(WINDOW_END)
@@ -334,9 +349,11 @@ class TestUnvalidatedTimeframes:
         if len(base) == 0:
             pytest.skip("real data absent")
         daily = resample(base, Timeframe.M1, Timeframe.D1, symbol)
-        assert len(daily) < 3, (
-            "the four-day window now yields >=3 daily bars — 1D validation is newly "
-            "possible and should be added"
+
+        assert len(daily) > 0, "the corrected completeness rule must yield daily bars"
+        assert len(daily) < 10, (
+            "a four-day window cannot support 1D validation; production 1D is validated "
+            "on six months of provider-native daily candles instead"
         )
 
     def test_weekly_is_not_representable(self):

@@ -19,6 +19,7 @@ import pandas as pd
 import pytest
 
 from ict_kronos.data import DataNormalizer, resample, with_close_time
+from ict_kronos.data.coverage import BarQuality, coverage_report
 from ict_kronos.data.dukascopy import PriceSide, aggregate_ticks_to_bars
 from ict_kronos.domain import Symbol, Timeframe
 
@@ -195,10 +196,29 @@ class TestTickToBarChain:
         hourly = resample(partial, Timeframe.M1, Timeframe.H1, Symbol.EURUSD)
         assert len(hourly) == 3
 
-    def test_gap_inside_a_period_invalidates_that_period_only(self, m1):
-        """A market gap must not silently produce a short-changed higher-TF bar."""
-        holed = m1.drop(index=m1.index[70:75]).reset_index(drop=True)  # inside hour 2
+    def test_a_gap_inside_a_period_no_longer_invalidates_that_period(self, m1):
+        """The specification changed, so this test changed with it.
+
+        It previously asserted that five absent minutes inside hour 1 deleted that
+        hour's bar. Real July-2026 data showed where that rule leads: it demanded 1440
+        of 1440 minutes for a Daily, which no market delivers, and it destroyed 100% of
+        Daily bars and 22.5% of 4H bars. See ``docs/features/data_coverage.md``.
+
+        A minute with no ticks is a minute with no trades, not missing data. The hour
+        survives as a real aggregation of everything that traded — and the coverage
+        report says plainly that observations are missing and that the cause is unproven.
+        """
+        holed = m1.drop(index=m1.index[70:75]).reset_index(drop=True)  # inside hour 1
         hourly = resample(holed, Timeframe.M1, Timeframe.H1, Symbol.EURUSD)
 
-        assert len(hourly) == 3
-        assert pd.Timestamp("2024-03-08T01:00:00Z") not in set(hourly["timestamp"])
+        assert len(hourly) == 4
+        assert pd.Timestamp("2024-03-08T01:00:00Z") in set(hourly["timestamp"])
+
+        bar = next(
+            b
+            for b in coverage_report(holed, Timeframe.M1, Timeframe.H1, Symbol.EURUSD).bars
+            if b.timestamp == pd.Timestamp("2024-03-08T01:00:00Z")
+        )
+        assert bar.missing_observations == 5
+        assert bar.quality is BarQuality.DEGRADED_UNKNOWN
+        assert bar.production_eligible is True

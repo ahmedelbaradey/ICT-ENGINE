@@ -229,7 +229,9 @@ class TestRealDataPipeline:
         result = RealDataPipeline(seeded).run([Symbol.EURUSD], DAY, DAY + timedelta(days=1), "v1")
 
         by_tf = {s.timeframe: s.rows for s in result.series}
-        assert by_tf == {"1m": 1440, "5m": 288, "15m": 96, "1h": 24}
+        # H4 and D1 joined DERIVED_TIMEFRAMES when the production universe was fixed to
+        # 1H/4H/1D, so a full UTC day now materialises six series rather than four.
+        assert by_tf == {"1m": 1440, "5m": 288, "15m": 96, "1h": 24, "4h": 6, "1d": 1}
 
     def test_manifest_carries_required_provenance(self, seeded):
         RealDataPipeline(seeded).run([Symbol.EURUSD], DAY, DAY + timedelta(days=1), "v1")
@@ -237,7 +239,8 @@ class TestRealDataPipeline:
         manifest = ManifestStore(seeded.storage.manifest_root).read("v1")
         assert manifest.provider == "dukascopy"
         assert manifest.pipeline_version
-        assert len(manifest.datasets) == 4
+        # One provenance entry per materialised series: 1m + 5m/15m/1h/4h/1d.
+        assert len(manifest.datasets) == 6
 
         entry = manifest.datasets[0]
         for key in (

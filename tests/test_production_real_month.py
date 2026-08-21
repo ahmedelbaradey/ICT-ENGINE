@@ -157,9 +157,14 @@ class TestFreshRawData:
     def test_bars_sit_on_the_timeframe_grid(self, symbol, timeframe):
         """A bar off the grid means a resample origin drifted — silent and corrosive."""
         stamps = load(symbol, timeframe)["timestamp"]
-        seconds = timeframe.minutes * 60
-        offsets = (stamps.view("int64") // 1_000_000_000) % seconds
-        assert (offsets == 0).all()
+        # Timedelta arithmetic, deliberately: casting to int64 and dividing by a
+        # hard-coded 1e9 assumes NANOSECOND storage, and pandas 3 stores these as
+        # ``datetime64[us]`` -- so that arithmetic was wrong by 1000x and reported
+        # every single bar as off-grid. This form has no unit assumption at all.
+        offsets = (stamps - pd.Timestamp(0, tz="UTC")) % timeframe.duration
+        assert (
+            offsets == pd.Timedelta(0)
+        ).all(), f"{symbol.value}/{timeframe.value}: bars are not on the timeframe grid"
 
     def test_the_weekend_is_absent_rather_than_filled(self, symbol):
         """A closed market is a gap in the data, never a synthesised flat bar."""
@@ -261,7 +266,7 @@ class TestFreshProvenance:
     def test_every_emitted_id_resolves_and_was_observable_first(self, symbol, timeframe):
         """The two questions that matter: does it exist, and could we have known it."""
         dataset, engine, _, _ = built(symbol, timeframe)
-        registry = _confirmations(engine)
+        registry = _confirmations(engine, symbol, timeframe)
 
         checked = 0
         for row in dataset.rows:
@@ -315,9 +320,14 @@ class TestFreshProvenance:
             pytest.skip(f"no dealing range confirmed on {symbol.value}/{timeframe.value}")
 
 
-def _confirmations(engine) -> dict[str, dict[str, datetime]]:
-    """``group -> {id: confirmation}`` for every detector the state cites."""
-    from ict_kronos.ict import structure_break_id, swing_point_id
+def _confirmations(engine, symbol: Symbol, timeframe: Timeframe) -> dict[str, dict[str, datetime]]:
+    """``group -> {id: confirmation}`` built from the DETECTORS, not from the states.
+
+    Resolving a row's provenance against ids collected from the same states that
+    produced it is very nearly tautological. This registry is built from detector output
+    independently, so "this id resolves" is a real claim about the engine.
+    """
+    from ict_kronos.ict import SwingConfig, structure_break_id, swing_registry
 
     out: dict[str, dict[str, datetime]] = {
         "structure": {structure_break_id(b): b.confirmation_timestamp for b in engine.structure.breaks},
@@ -332,12 +342,17 @@ def _confirmations(engine) -> dict[str, dict[str, datetime]]:
         "unicorn": {u.unicorn_id: u.confirmation_timestamp for u in engine.unicorn.unicorns},
         "daily_open": {level.level_id: level.confirmation_timestamp for level in engine.daily_open_levels},
         "dealing_range": {r.range_id: r.confirmation_timestamp for r in engine.dealing_range.ranges},
-        "swing": (
-            {swing_point_id(s): s.confirmation_timestamp for s in engine.dealing_range.swings_used}
-            if hasattr(engine.dealing_range, "swings_used")
-            else {}
-        ),
+        # R2-07 ships ``swing_registry`` for exactly this. The previous version guessed
+        # an attribute name behind a ``hasattr`` and silently produced an EMPTY dict, so
+        # every swing id "resolved to nothing" -- a broken check that looked like a
+        # broken engine. A registry that can be empty must not sit behind a silent
+        # fallback, so this one is asserted non-empty.
+        "swing": {
+            key: swing.confirmation_timestamp
+            for key, swing in swing_registry(engine.frame, symbol, timeframe, SwingConfig()).items()
+        },
     }
+    assert out["swing"], "the swing registry must never be silently empty"
     return out
 
 
@@ -400,8 +415,47 @@ class TestFreshLeakage:
         assert self.features_at(appended, symbol, timeframe, row.as_of) == row.features
 
 
+def streaming_cuts(frame, timeframe, *, seed: int = 20260821) -> list[int]:
+    """Which prefix cuts to replay — exhaustive where possible, sampled where not.
+
+    A prefix replay rebuilds the WHOLE prefix, so replaying every cut is quadratic in
+    the bar count. On the 1H series that is 549 full dataset rebuilds per test, per
+    symbol, and it was measured at over 25 minutes for a single test. Claiming
+    "every cut" there is not rigour; it is a suite nobody can run.
+
+    So 1D is exhaustive, and the coarser series are sampled deterministically across
+    the cases that actually break streaming — the ends, session boundaries, gap edges,
+    the DST week — plus deciles of prefix LENGTH, because cost and accumulated state
+    both grow with it. The seed is fixed so the sample is reproducible, and the tests
+    say **sampled**, never exhaustive.
+    """
+    import random
+
+    n = len(frame)
+    if timeframe is Timeframe.D1:
+        return list(range(1, n + 1))
+
+    stamps = pd.to_datetime(frame["timestamp"], utc=True)
+    rng = random.Random(seed)
+
+    def pick(predicate, count):
+        found = [i + 1 for i in range(n) if predicate(stamps.iloc[i])]
+        return set(found if len(found) <= count else rng.sample(found, count))
+
+    k = 2
+    step = timeframe.duration
+    cuts = {1, 2, n - 1, n}
+    cuts |= pick(lambda t: t.dayofweek == 0 and t.hour < 4, k)  # Monday opens
+    cuts |= pick(lambda t: t.dayofweek == 4 and t.hour >= 16, k)  # Friday closes
+    cuts |= pick(lambda t: t.hour % 4 == 0, k)  # 4H boundaries
+    gaps = [i + 1 for i in range(1, n) if (stamps.iloc[i] - stamps.iloc[i - 1]) > step]
+    cuts |= set(gaps if len(gaps) <= k else rng.sample(gaps, k))  # gap edges
+    cuts |= {max(1, round(n * f)) for f in (0.25, 0.5, 0.75)}  # prefix-length spread
+    return sorted(c for c in cuts if 1 <= c <= n)
+
+
 class TestFreshStreaming:
-    """Batch == prefix replay, at every cut, on the production timeframes."""
+    """Batch == prefix replay. EXHAUSTIVE on 1D; deterministically SAMPLED above it."""
 
     def test_prefix_replay_reproduces_every_row(self, symbol, timeframe):
         dataset, _, frame, spec = built(symbol, timeframe)
@@ -409,7 +463,7 @@ class TestFreshStreaming:
         full = {row.as_of: row for row in dataset.rows}
         builder = DatasetBuilder()
 
-        for cut in range(1, len(frame) + 1):
+        for cut in streaming_cuts(frame, timeframe):
             for row in builder.build(frame.iloc[:cut], symbol, timeframe, spec).rows:
                 reference = full[row.as_of]
                 if row.features == reference.features:
@@ -427,7 +481,7 @@ class TestFreshStreaming:
         full = {row.as_of: row for row in dataset.rows}
         builder = DatasetBuilder()
 
-        for cut in range(1, len(frame) + 1):
+        for cut in streaming_cuts(frame, timeframe):
             for row in builder.build(frame.iloc[:cut], symbol, timeframe, spec).rows:
                 reference = full[row.as_of]
                 for value in row.targets:
