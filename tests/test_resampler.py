@@ -101,7 +101,14 @@ class TestResampleAggregation:
 
 
 class TestIncompleteBars:
-    def test_incomplete_target_bar_is_dropped_by_default(self):
+    """Boundary truncation rejects a bar. A quiet interior does not.
+
+    The distinction was forced by real July-2026 data: the old rule required every
+    constituent source bar to exist, which no real market delivers, and it destroyed
+    100% of Daily bars and 22.5% of 4H bars. See ``docs/features/data_coverage.md``.
+    """
+
+    def test_a_boundary_truncated_bar_is_dropped_by_default(self):
         """A 1H bar built from 5 of its 12 source bars has a real open but a
         meaningless high/low/close. Treating it as finished is a fabricated bar."""
         frame = make_frame(17, timeframe=Timeframe.M5)  # 12 + 5
@@ -110,15 +117,32 @@ class TestIncompleteBars:
         assert len(out) == 1
         assert out["timestamp"].iloc[0] == pd.Timestamp(FIXTURE_START)
 
-    def test_incomplete_bar_can_be_kept_explicitly(self):
+    def test_a_boundary_truncated_bar_can_be_kept_explicitly(self):
         frame = make_frame(17, timeframe=Timeframe.M5)
-        out = resample(frame, Timeframe.M5, Timeframe.H1, Symbol.EURUSD, require_complete=False)
+        out = resample(frame, Timeframe.M5, Timeframe.H1, Symbol.EURUSD, drop_boundary_incomplete=False)
         assert len(out) == 2
 
-    def test_gap_inside_a_period_makes_that_bar_incomplete(self):
+    def test_a_gap_INSIDE_a_period_no_longer_destroys_the_bar(self):
+        """The specification that changed, stated as the test that changed with it.
+
+        Two absent 5m observations inside an otherwise fully-observed hour used to
+        delete the bar. They are now missing observations in a real aggregation of
+        everything that traded — and the coverage report says so.
+        """
         frame = make_frame(12, timeframe=Timeframe.M5).drop(index=[4, 5]).reset_index(drop=True)
         out = resample(frame, Timeframe.M5, Timeframe.H1, Symbol.EURUSD)
-        assert len(out) == 0
+        assert len(out) == 1
+        assert out["timestamp"].iloc[0] == pd.Timestamp(FIXTURE_START)
+
+    def test_the_gap_is_reported_rather_than_ignored(self):
+        """Surviving is not the same as being called clean."""
+        from ict_kronos.data.coverage import BarQuality, coverage_report
+
+        frame = make_frame(12, timeframe=Timeframe.M5).drop(index=[4, 5]).reset_index(drop=True)
+        bar = coverage_report(frame, Timeframe.M5, Timeframe.H1, Symbol.EURUSD).bars[0]
+        assert bar.missing_observations == 2
+        assert bar.quality is BarQuality.DEGRADED_UNKNOWN
+        assert bar.production_eligible is True
 
 
 class TestWithCloseTime:

@@ -55,16 +55,29 @@ def resample(
     target: Timeframe,
     symbol: Symbol,
     *,
-    require_complete: bool = True,
+    drop_boundary_incomplete: bool = True,
 ) -> pd.DataFrame:
     """Aggregate ``source`` bars into ``target`` bars.
 
-    ``require_complete`` (default True) drops any target bar that is not backed by a
-    full complement of source bars. This matters at both ends of a window: a 4H bar
-    built from only the first 5 minutes of its period has a real open but a
-    meaningless high/low/close, and treating it as a finished bar would be a
-    fabricated observation. Callers doing exploratory work can pass False, but the
-    dataset builder never should.
+    ``drop_boundary_incomplete`` (default True) drops a target bar whose period is not
+    fully covered by the observed data — a 4H bar built from only the first five
+    minutes at the edge of your window has a real open but a meaningless high, low and
+    close, and treating it as finished would be a fabricated observation.
+
+    **It does NOT drop a bar because some constituent minutes did not trade.** That
+    rule used to exist, it demanded 1440 of 1440 one-minute bars for a Daily, and real
+    FX never delivers it: the best EURUSD day in July 2026 had 1438 minutes, missing
+    21:03 and 23:39. The measured cost was 10.7% of 1H bars, 22.5% of 4H bars and
+    **100% of Daily bars** — worst precisely on the production timeframes. A minute
+    with no ticks is a minute with no trades, not missing data.
+
+    Coverage is still measured, and in more detail than before; it is simply no longer
+    a validity rule. See :func:`ict_kronos.data.coverage.coverage_report`, which
+    classifies every missing observation as ``BOUNDARY``, ``MARKET_CLOSED`` or
+    ``UNDETERMINED`` and reports a per-bar quality without ever rejecting on a ratio.
+
+    Nothing is fabricated, forward-filled or interpolated on any path. A gap stays a
+    gap; what changed is only whether the surrounding bar is thrown away.
 
     Raises :class:`ResampleError` if ``target`` is not an exact multiple of
     ``source`` — an aggregation that straddles boundaries produces silently wrong
@@ -94,20 +107,31 @@ def resample(
     bars = bars.loc[source_counts > 0]
     source_counts = source_counts.loc[source_counts > 0]
 
-    if require_complete:
-        expected = target.minutes // source.minutes
-        complete = source_counts >= expected
-        dropped = int((~complete).sum())
+    if drop_boundary_incomplete:
+        # A bar is refused only when the DATASET cannot speak for its whole period.
+        # The observed extent runs from the first source bar's open to the last source
+        # bar's CLOSE -- anything outside that was never observed, so a bar straddling
+        # the edge is a partial aggregation rather than a finished one.
+        observed_start = work.index.min()
+        observed_end = work.index.max() + source.duration
+
+        starts = bars.index
+        ends = starts + target.duration
+        inside = (starts >= observed_start) & (ends <= observed_end)
+
+        dropped = int((~inside).sum())
         if dropped:
             logger.info(
-                "resample %s %s->%s: dropped %d incomplete target bar(s) (expected %d source bars each)",
+                "resample %s %s->%s: dropped %d boundary-incomplete target bar(s) "
+                "(period not fully inside [%s, %s])",
                 symbol.value,
                 source.value,
                 target.value,
                 dropped,
-                expected,
+                observed_start,
+                observed_end,
             )
-        bars = bars.loc[complete]
+        bars = bars.loc[inside]
 
     if bars.empty:
         return _empty_resampled()

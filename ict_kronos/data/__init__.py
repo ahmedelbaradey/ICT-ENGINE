@@ -1,6 +1,14 @@
 """Market-data ingestion: providers, normalization, resampling, ingest pipeline."""
 
 from .base import MarketDataError, MarketDataProvider, require_utc
+from .coverage import (
+    BarCoverage,
+    BarQuality,
+    CoverageReport,
+    GapCause,
+    SessionProfile,
+    coverage_report,
+)
 from .factory import build_market_data_provider
 from .fixture_provider import FixtureProvider
 from .ingest import IngestPipeline, IngestResult
@@ -17,7 +25,11 @@ from .resampler import (
 
 __all__ = [
     "RESAMPLED_COLUMNS",
+    "BarCoverage",
+    "BarQuality",
+    "CoverageReport",
     "DataNormalizer",
+    "GapCause",
     "FixtureProvider",
     "Gap",
     "IngestPipeline",
@@ -26,9 +38,11 @@ __all__ = [
     "MarketDataProvider",
     "NormalizationReport",
     "ResampleError",
+    "SessionProfile",
     "align_htf_context",
     "build_market_data_provider",
     "build_timeframe_stack",
+    "coverage_report",
     "latest_closed_bar",
     "require_utc",
     "resample",

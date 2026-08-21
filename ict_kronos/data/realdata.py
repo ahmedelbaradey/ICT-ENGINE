@@ -30,13 +30,33 @@ from ..storage.manifest import (
 )
 from ..storage.parquet_store import ParquetCandleStore, PartitionInfo
 from .backfill import BackfillResult, TickBackfill
+from .coverage import CoverageReport, SessionProfile, coverage_report
 from .normalizer import DataNormalizer, NormalizationReport
 from .resampler import resample
 
 logger = get_logger(__name__)
 
 #: Derived from the 1M base. Ordered fastest-first so logs read naturally.
-DERIVED_TIMEFRAMES: tuple[Timeframe, ...] = (Timeframe.M5, Timeframe.M15, Timeframe.H1)
+#:
+#: H4 and D1 were added when the production universe was fixed to 1H/4H/1D: the
+#: research suites had been resampling them on the fly from 1M, which is correct but
+#: leaves the production timeframes as the only ones with no persisted, hashed,
+#: manifest-backed partition. Everything here still derives from the SAME 1M series --
+#: no timeframe is ever fetched separately.
+#:
+#: **D1 is a UTC-midnight day**, because that is what this repository's resampler
+#: means by a day. It is NOT the 17:00-New-York daily rollover most FX brokers use,
+#: and it does not align with R2-05.1's 00:00-America/New_York True Daily Open. That
+#: discrepancy is documented in ``docs/features/production_universe.md`` rather than
+#: silently reconciled -- transforming one definition into the other would invent a
+#: bar the data never contained.
+DERIVED_TIMEFRAMES: tuple[Timeframe, ...] = (
+    Timeframe.M5,
+    Timeframe.M15,
+    Timeframe.H1,
+    Timeframe.H4,
+    Timeframe.D1,
+)
 
 
 @dataclass
@@ -49,6 +69,10 @@ class SeriesResult:
     partitions: list[PartitionInfo] = field(default_factory=list)
     report: NormalizationReport | None = None
     derived_from: str | None = None
+    #: Why source observations are missing, per target bar. Recorded rather than acted
+    #: on: a coverage ratio is a quality signal, never a validity rule. See
+    #: ``docs/features/data_coverage.md``.
+    coverage: CoverageReport | None = None
 
 
 @dataclass
@@ -146,6 +170,10 @@ class RealDataPipeline:
         provenance: list[SeriesProvenance] = []
 
         base, base_report = self._normalizer.normalize(backfill.bars_1m, symbol, Timeframe.M1)
+        # Inferred ONCE per symbol from the 1M series, then shared by every derived
+        # timeframe -- the recurring closures are a property of the instrument's
+        # trading calendar, not of the aggregation being performed.
+        profile = SessionProfile.from_source(base, Timeframe.M1, symbol)
         base_partitions = self._store.write(base, symbol, Timeframe.M1, overwrite=overwrite)
         result.series.append(
             SeriesResult(
@@ -182,6 +210,7 @@ class RealDataPipeline:
                     partitions=partitions,
                     report=report,
                     derived_from=Timeframe.M1.value,
+                    coverage=coverage_report(base, Timeframe.M1, timeframe, symbol, profile=profile),
                 )
             )
             provenance.append(
@@ -237,6 +266,7 @@ class RealDataPipeline:
 
         partitions = [p for s in result.series for p in s.partitions]
         reports = [s.report.as_dict() for s in result.series if s.report is not None]
+        coverage = [s.coverage.as_dict() for s in result.series if s.coverage is not None]
 
         manifest = DatasetManifest.create(
             dataset_version=result.dataset_version,
@@ -245,6 +275,7 @@ class RealDataPipeline:
             datasets=provenance,
             normalization_reports=reports,
             notes={
+                "coverage": coverage,
                 "window": {"start": start.isoformat(), "end": end.isoformat()},
                 "timezone": "UTC",
                 "price_side": "bid",
