@@ -138,9 +138,7 @@ class SessionProfile:
             }
         )
         #: How many distinct calendar days each weekday contributes.
-        occurrences = (
-            present.groupby("weekday")["date"].nunique().to_dict()  # type: ignore[assignment]
-        )
+        occurrences = present.groupby("weekday")["date"].nunique().to_dict()  # type: ignore[assignment]
 
         by_slot = present.groupby(["weekday", "minute"])["seen"]
         never_seen = by_slot.sum() == 0
