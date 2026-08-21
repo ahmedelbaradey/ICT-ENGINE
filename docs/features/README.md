@@ -18,6 +18,8 @@ their answers side by side.
 | [targets.md](targets.md) | The four target types, every convention and the alternative it was chosen over, unresolved reasons, the same-bar TP/SL ambiguity |
 | [dataset.md](dataset.md) | Row schema, reproducibility, the four-part leakage contract, provenance, the flat frame, the quality audit |
 | [splits.md](splits.md) | Chronological boundaries, and the embargo that stops a target window crossing one |
+| [production_universe.md](production_universe.md) | The 1H/4H/Daily production lock, the Daily-vs-True-Daily-Open discrepancy, per-pair target parameters |
+| [data_coverage.md](data_coverage.md) | Why a bar is missing observations — market closure, provider loss, dataset boundary — and which of those disqualifies it |
 
 ## What this package does not do
 
