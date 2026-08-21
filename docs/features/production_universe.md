@@ -24,6 +24,40 @@ error at all. It looks like more data.
 The universe is a module constant, not configuration. A configurable production universe
 is one environment variable away from training on 1-minute bars.
 
+## 1a. Where production candles come from
+
+```
+Dukascopy native 1H  ──►  Production 1H
+                     └──►  Production 4H   (exactly four valid native 1H bars)
+Dukascopy native 1D  ──►  Production 1D
+
+ticks / 1M / 5M / 15M ──►  NOT a production dependency, at any point
+```
+
+Probed against the live feed rather than assumed:
+
+| File | Result |
+|---|---|
+| `{SYM}/{YYYY}/{MM}/BID_candles_hour_1.bi5` | **200** — native 1H |
+| `{SYM}/{YYYY}/{MM}/BID_candles_day_1.bi5` | **200** — native 1D |
+| `BID_candles_hour_4.bi5`, `BID_candles_min_240.bi5` | **404** |
+| `BID_candles_min_5.bi5`, `BID_candles_min_15.bi5` | **404** |
+
+There is no native 4H series, so 4H is aggregated from native 1H and from nothing else.
+`MM` is **zero-based** — July is `06`.
+
+**The provider pads closed periods.** A shut hour is not absent from the native file; it
+is a flat zero-volume candle carrying the prior close forward — 195 of 744 EURUSD hourly
+records in July 2026, all `O==H==L==C`, including every hour of Saturday. Consuming those
+would feed forward-filled prices to the feature pipeline, so they are identified, dropped
+and counted. Dropping them is not a repair: it restores the absence the market had.
+
+**A 4H bar needs four 1H bars.** A window missing an hour is withheld, never compressed.
+Even a *proven* market closure withholds it: proving why an hour is absent explains the
+gap, it does not restore the hour, and three traded hours labelled `4h` would be a
+different candle wearing the same name. Four dispositions, each window in exactly one:
+`EMITTED`, `WITHHELD_BOUNDARY`, `WITHHELD_MARKET_CLOSED`, `WITHHELD_UNDETERMINED`.
+
 ## 2. The Daily discrepancy — read this before using `1D`
 
 > **This repository's `1D` bar is a UTC-midnight day. It is not the FX broker daily, and
@@ -34,7 +68,7 @@ transformation of the data:
 
 | Definition | Boundary | Where it comes from |
 |---|---|---|
-| `Timeframe.D1` as resampled here | **00:00 UTC** | `resample(..., "1D")`, this repo's resampler |
+| `Timeframe.D1` in production | **00:00 UTC** | Dukascopy **native** `BID_candles_day_1` |
 | FX broker convention | 17:00 New York | Dukascopy and most retail feeds |
 | R2-05.1 True Daily Open | **00:00 America/New_York** | ICT, `docs/ict/true_daily_open.md` |
 

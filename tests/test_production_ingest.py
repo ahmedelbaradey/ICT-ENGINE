@@ -42,6 +42,7 @@ from ict_kronos.data.production_ingest import (
     DERIVED_PRODUCTION_TIMEFRAME,
     HOURS_PER_H4,
     NATIVE_PRODUCTION_TIMEFRAMES,
+    H4Disposition,
     build_h4_from_native_h1,
 )
 from ict_kronos.domain import MarketCandle, Symbol, Timeframe, candles_to_frame
@@ -257,34 +258,57 @@ class TestIncompleteFourHourWindows:
             window = [w for w in built.emitted() if w.timestamp == bar.timestamp.to_pydatetime()]
             assert window and len(window[0].present_hours) == HOURS_PER_H4
 
-    def test_a_window_whose_missing_hours_are_PROVEN_closed_is_emitted(self):
-        """The one permitted exception, and it needs proof — see `data_coverage.md` §3."""
+    def test_a_PROVEN_closure_explains_the_absence_but_still_withholds(self):
+        """Proving the market was shut does not restore the missing hour.
+
+        A 20:00 window whose 21:00 hour was provably closed still holds only three
+        traded hours. Emitting it as ``4h`` would be exactly the silent compression
+        this builder refuses — so the cause is recorded and the window is withheld
+        under its own disposition, distinct from an unexplained absence.
+        """
         closed = frozenset({(weekday, 21 * 60) for weekday in range(7)})
         profile = SessionProfile(
             symbol=SYM.value, closed_slots=closed, weekday_occurrences=dict.fromkeys(range(7), 5)
         )
-        # 20:00 window: 20, 21, 22, 23 — with 21:00 absent and provably shut.
         source = hours(28, skip=(21,))
         built = build_h4_from_native_h1(source, SYM, profile=profile)
         window = next(w for w in built.windows if w.timestamp.hour == 20)
-        assert window.emitted is True
+        assert window.disposition is H4Disposition.WITHHELD_MARKET_CLOSED
+        assert window.emitted is False
         assert window.cause is GapCause.MARKET_CLOSED
-        assert "market-closed" in window.reason
+        assert "a 4H bar needs four" in window.reason
+
+    def test_a_proven_closure_is_distinguishable_from_an_unexplained_absence(self):
+        """Both are withheld; conflating WHY would throw away the only useful signal."""
+        source = hours(28, skip=(21,))
+        closed = frozenset({(weekday, 21 * 60) for weekday in range(7)})
+        proven = build_h4_from_native_h1(
+            source,
+            SYM,
+            profile=SessionProfile(
+                symbol=SYM.value, closed_slots=closed, weekday_occurrences=dict.fromkeys(range(7), 5)
+            ),
+        )
+        unproven = build_h4_from_native_h1(source, SYM)
+        at_20 = lambda built: next(w for w in built.windows if w.timestamp.hour == 20)  # noqa: E731
+        assert at_20(proven).disposition is H4Disposition.WITHHELD_MARKET_CLOSED
+        assert at_20(unproven).disposition is H4Disposition.WITHHELD_UNDETERMINED
+        assert at_20(proven).emitted is at_20(unproven).emitted is False
 
     def test_an_unproven_absence_is_never_called_a_closure(self):
-        """§21: never silently treat an outage as a market closure."""
+        """Never silently treat an outage as a market closure."""
         source = hours(28, skip=(21,))
         built = build_h4_from_native_h1(source, SYM)  # no profile proves anything
         window = next(w for w in built.windows if w.timestamp.hour == 20)
-        assert window.emitted is False
+        assert window.disposition is H4Disposition.WITHHELD_UNDETERMINED
         assert window.cause is GapCause.UNDETERMINED
 
     def test_a_boundary_truncated_window_is_withheld(self):
         source = hours(6, start=datetime(2026, 6, 1, 2, tzinfo=UTC))
         built = build_h4_from_native_h1(source, SYM)
         first = built.windows[0]
+        assert first.disposition is H4Disposition.WITHHELD_BOUNDARY
         assert first.emitted is False
-        assert "boundary" in first.reason
 
     def test_nothing_is_fabricated_to_fill_a_withheld_window(self):
         source = hours(8, skip=(5,))
@@ -295,7 +319,9 @@ class TestIncompleteFourHourWindows:
         built = build_h4_from_native_h1(hours(24, skip=(5, 13)), SYM)
         counts = built.counts()
         assert counts["windows"] == len(built.windows)
-        assert counts["emitted"] + counts["withheld"] == counts["windows"]
+        buckets = sum(counts[d.value] for d in H4Disposition)
+        assert buckets == counts["windows"], "every window lands in exactly one bucket"
+        assert counts["emitted"] == len(built.emitted())
 
     def test_an_empty_source_produces_nothing_rather_than_erroring(self):
         built = build_h4_from_native_h1(candles_to_frame([]), SYM)

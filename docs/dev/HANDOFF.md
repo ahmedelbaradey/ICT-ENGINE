@@ -2,7 +2,9 @@
 
 **Protocol (ported from Learnexia):** read this before starting work; update it before opening your PR, in the same PR. Prune what has gone stale. If it isn't here, assume the next person won't know it.
 
-Last updated: **2026-08-20** — end of R2-08. **Phase 2 is COMPLETE** (R2-01 … R2-07). **R2-08 — the prediction target and dataset engine — is ready for review**: `ict_kronos/features/`, the hard gate before any model training.
+Last updated: **2026-08-21** — end of R2-08.2. Production data is provider-native 1H/1D with 4H from four native 1H bars; ticks and minute data are not a production dependency.
+
+Previous: **2026-08-20** — end of R2-08. **Phase 2 is COMPLETE** (R2-01 … R2-07). **R2-08 — the prediction target and dataset engine — is ready for review**: `ict_kronos/features/`, the hard gate before any model training.
 
 ---
 
@@ -246,6 +248,42 @@ Full results: [DATA_PROOF.md](../financial-ai/DATA_PROOF.md). A re-run against t
 - **The `require_structure_break` default makes the Unicorn's inputs sparse.** With the
   gate ON (the default) EURUSD 1H yields 3 Unicorns and XAUUSD 1H yields 0. The
   real-data suite runs the ungated Breaker so the geometry is exercised everywhere.
+
+## Gotchas found in R2-08.2 (production data architecture)
+
+- **Production candles are provider-NATIVE, not tick-derived.** Dukascopy publishes
+  native 1H (`BID_candles_hour_1.bi5`) and native 1D (`BID_candles_day_1.bi5`), one file
+  per month. It publishes **no** native 4H — `hour_4` and `min_240` both 404 — so 4H is
+  built from exactly four native 1H bars and from nothing else. Ticks and 1M/5M/15M are
+  not a production dependency. The tick lane still exists for the 2024-03 research
+  fixture and is not on the production path.
+- **Dukascopy month numbering is ZERO-BASED in the URL.** July is `06`. Get it wrong and
+  you silently fetch the previous month; every downstream number still looks plausible.
+- **The provider pads closed periods with fabricated candles.** A shut hour is present in
+  the native file as a flat zero-volume bar carrying the prior close forward — 195 of 744
+  EURUSD hourly records in July 2026, including every hour of Saturday. Using native
+  candles "as-is" would feed forward-filled prices into the feature pipeline. They are
+  identified (`volume == 0` AND `O == H == L == C`), dropped and counted: 1224 for EURUSD
+  and 1389 for XAUUSD over six months. Dropping them restores the absence the market had.
+- **A 4H bar needs four 1H bars — a proven closure does not change that.** Proving *why*
+  an hour is absent explains the gap; it does not restore the hour. Three traded hours
+  labelled `4h` would be a different candle wearing the same name, so a proven closure
+  gets its own withheld disposition rather than being emitted. Four dispositions, each
+  window in exactly one: EMITTED / WITHHELD_BOUNDARY / WITHHELD_MARKET_CLOSED /
+  WITHHELD_UNDETERMINED.
+- **The XAUUSD 21:00 hour is the dominant withheld cause and stays UNDETERMINED.** Gold
+  traded at 21:00 only 24 times in six months, but it *did* trade, so the conservative
+  session profile cannot prove a closure — and 128 XAUUSD 4H windows are withheld as a
+  result. That is the rule working, not failing. Do not add a heuristic to "fix" it.
+- **State construction, not detection, is the production bottleneck.** EURUSD 1H, 3120
+  bars: detect 79 s, **state 661 s**, features 0.09 s, targets 0.57 s — 237 ms/row. Cost
+  grows with accumulated events, so exhaustive prefix replay over a 3120-bar 1H series is
+  quadratic and infeasible; 1H streaming is sampled deterministically and reported as
+  sampled.
+- **A quadratic scan is easy to write and invisible until real volume.** The first 4H
+  builder answered "was this hour observed?" by rescanning the whole 1H index per window
+  — 806 x 3120. A cached six-month ingest took >90 s; answering from a set built once
+  takes 0.3 s.
 
 ## Gotchas found in R2-08 (targets + dataset)
 

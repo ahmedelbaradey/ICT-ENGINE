@@ -32,6 +32,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from enum import StrEnum
 from pathlib import Path
 
 import pandas as pd
@@ -181,6 +182,22 @@ class NativeCandleClient:
         return b"", self.max_retries, f"{type(last).__name__}: {last}"
 
 
+class H4Disposition(StrEnum):
+    """What happened to one 4H candidate window, and why.
+
+    ``WITHHELD_MARKET_CLOSED`` is deliberately a *withheld* state rather than an
+    emitted one. A window whose 21:00 hour was provably shut still contains only three
+    traded hours, and a three-hour aggregate labelled ``4h`` is a different candle
+    wearing the same name. Proving the market was closed explains the absence; it does
+    not restore the missing hour.
+    """
+
+    EMITTED = "emitted"
+    WITHHELD_BOUNDARY = "withheld_boundary"
+    WITHHELD_MARKET_CLOSED = "withheld_market_closed"
+    WITHHELD_UNDETERMINED = "withheld_undetermined"
+
+
 @dataclass(frozen=True)
 class H4Window:
     """One 4H window's provenance: which native 1H bars built it, and which were absent."""
@@ -190,8 +207,12 @@ class H4Window:
     missing_hours: tuple[datetime, ...]
     #: Missing hours the session profile proves were market-closed.
     closed_hours: tuple[datetime, ...]
-    emitted: bool
+    disposition: H4Disposition
     reason: str
+
+    @property
+    def emitted(self) -> bool:
+        return self.disposition is H4Disposition.EMITTED
 
     @property
     def cause(self) -> GapCause:
@@ -208,6 +229,7 @@ class H4Window:
             "missing_hours": len(self.missing_hours),
             "closed_hours": len(self.closed_hours),
             "cause": self.cause.value,
+            "disposition": self.disposition.value,
             "emitted": self.emitted,
             "reason": self.reason,
         }
@@ -227,14 +249,12 @@ class H4BuildResult:
         return tuple(w for w in self.windows if not w.emitted)
 
     def counts(self) -> dict[str, int]:
-        return {
-            "windows": len(self.windows),
-            "emitted": len(self.emitted()),
-            "withheld": len(self.withheld()),
-            "complete": sum(1 for w in self.windows if not w.missing_hours),
-            "market_closed": sum(1 for w in self.windows if w.cause is GapCause.MARKET_CLOSED),
-            "undetermined": sum(1 for w in self.windows if w.cause is GapCause.UNDETERMINED),
-        }
+        """Every candidate window in exactly one bucket. The four sum to the total."""
+        out = {disposition.value: 0 for disposition in H4Disposition}
+        for window in self.windows:
+            out[window.disposition.value] += 1
+        out["windows"] = len(self.windows)
+        return out
 
 
 def build_h4_from_native_h1(
@@ -289,16 +309,20 @@ def build_h4_from_native_h1(
 
         end = start + Timeframe.H4.duration
         if start < observed_start or end > observed_end:
-            emitted, reason = False, "boundary: the window is not fully inside the observed data"
+            disposition = H4Disposition.WITHHELD_BOUNDARY
+            reason = "the window is not fully inside the observed data"
         elif not missing:
-            emitted, reason = True, "complete: all four native 1H bars present"
+            disposition = H4Disposition.EMITTED
+            reason = "all four native 1H bars present"
         elif len(closed) == len(missing):
-            emitted, reason = True, f"market-closed: {len(closed)} absent hour(s) proven shut"
+            # The absence is EXPLAINED, not repaired. Three traded hours are still
+            # three traded hours, and emitting them as a 4H bar would be the silent
+            # compression this builder exists to refuse.
+            disposition = H4Disposition.WITHHELD_MARKET_CLOSED
+            reason = f"{len(closed)} absent hour(s) proven shut; a 4H bar needs four"
         else:
-            emitted, reason = (
-                False,
-                f"withheld: {len(missing) - len(closed)} absent hour(s) with no proven cause",
-            )
+            disposition = H4Disposition.WITHHELD_UNDETERMINED
+            reason = f"{len(missing) - len(closed)} absent hour(s) with no proven cause"
 
         windows.append(
             H4Window(
@@ -306,11 +330,11 @@ def build_h4_from_native_h1(
                 present_hours=present,
                 missing_hours=missing,
                 closed_hours=closed,
-                emitted=emitted,
+                disposition=disposition,
                 reason=reason,
             )
         )
-        if emitted:
+        if disposition is H4Disposition.EMITTED:
             keep.append(start)
 
     if not keep:
@@ -425,11 +449,82 @@ class ProductionIngest:
         return result
 
 
+def persist_production(
+    result: ProductionIngestResult,
+    *,
+    root: Path,
+    manifest_path: Path,
+    overwrite: bool = False,
+) -> dict:
+    """Write the six production series and a manifest that can reproduce their provenance.
+
+    Written under their own root, separate from the tick-derived research store: the two
+    are built from different sources under different rules, and one directory holding
+    both would make "which architecture produced this bar?" unanswerable.
+
+    Reuses :class:`ParquetCandleStore` rather than inventing a second storage layer —
+    the requirement is a different location, not a different design.
+    """
+    import hashlib
+    import json
+
+    from ..storage.parquet_store import ParquetCandleStore
+
+    store = ParquetCandleStore(root)
+    entries: list[dict] = []
+
+    for series in result.series:
+        symbol = Symbol.from_string(series.symbol)
+        timeframe = Timeframe.from_string(series.timeframe)
+        partitions = store.write(series.frame, symbol, timeframe, overwrite=overwrite)
+
+        entry = series.as_dict()
+        entry.update(
+            {
+                "requested_start": result.start.isoformat(),
+                "requested_end": result.end.isoformat(),
+                "actual_start": (
+                    series.frame["timestamp"].iloc[0].isoformat() if len(series.frame) else None
+                ),
+                "actual_end": (series.frame["timestamp"].iloc[-1].isoformat() if len(series.frame) else None),
+                "partitions": [
+                    {"path": str(part.path), "rows": part.rows, "sha256": part.sha256} for part in partitions
+                ],
+            }
+        )
+        if series.h4 is not None:
+            entry["h4_dispositions"] = series.h4.counts()
+            entry["h4_withheld"] = [w.as_dict() for w in series.h4.withheld()]
+        entries.append(entry)
+
+    manifest = {
+        "dataset": "production-native-2026-02_08",
+        "architecture": {
+            "1h": "dukascopy native BID_candles_hour_1",
+            "1d": "dukascopy native BID_candles_day_1",
+            "4h": "derived from exactly four valid native 1h bars",
+            "tick_dependency": False,
+            "minute_dependency": False,
+        },
+        "window": {"start": result.start.isoformat(), "end": result.end.isoformat()},
+        "series": entries,
+        "failures": list(result.failures),
+    }
+    payload = json.dumps(manifest, indent=2, sort_keys=True)
+    manifest["manifest_sha256"] = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    manifest_path = Path(manifest_path)
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+    return manifest
+
+
 __all__ = [
     "DERIVED_PRODUCTION_TIMEFRAME",
     "HOURS_PER_H4",
     "NATIVE_PRODUCTION_TIMEFRAMES",
     "H4BuildResult",
+    "H4Disposition",
     "H4Window",
     "NativeCandleClient",
     "ProductionIngest",
@@ -437,4 +532,5 @@ __all__ = [
     "ProductionIngestResult",
     "ProductionSeries",
     "build_h4_from_native_h1",
+    "persist_production",
 ]

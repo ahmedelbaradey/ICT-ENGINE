@@ -19,7 +19,7 @@ This project makes no claim to predict markets with certainty. All outputs are p
 | 1 — Market data layer | ✅ Complete |
 | 1.5 — Real-data proof | ✅ APPROVED |
 | **2 — ICT engine** | ✅ **Complete — R2-01…R2-07.** Fourteen deterministic detectors, plus `ICTMarketState` (point-in-time aggregation) and `ICTFeatureVector` (56 documented features). Timeframe-local; multi-timeframe assembly is deferred. |
-| 3 — Feature dataset | 🟨 **R2-08 ready for review** — `ict_kronos/features/`: prediction targets, dataset rows, chronological splits with a target-window embargo, and a data-quality audit. No model training. |
+| 3 — Feature dataset | 🟨 **R2-08 / R2-08.2** — targets, dataset rows, chronological splits, quality audit. **Production universe locked to EURUSD/XAUUSD × 1H/4H/1D**, built from provider-**native** 1H and 1D candles (4H = four native 1H bars). Ticks and minute data are not a production dependency. |
 | 4 — Baseline models | ⬜ |
 | 5 — Kronos integration | ⬜ Blocked — no CUDA GPU |
 | 6 — Hybrid model | ⬜ |
